@@ -4,10 +4,13 @@
 // We also import global styles here.
 
 import type { Metadata } from "next";
-import { Inter, Lobster } from "next/font/google";
+import { Inter } from "next/font/google";
+import { Lobster } from "next/font/google";
 import "./globals.css";
+import AuthProvider from "@/components/auth/AuthProvider";
 
 const inter = Inter({ subsets: ["latin"] });
+
 const lobster = Lobster({
   weight: "400",
   subsets: ["latin"],
@@ -16,7 +19,7 @@ const lobster = Lobster({
 
 export const metadata: Metadata = {
   title: "AI Video Editor",
-  description: "Conversational video editing powered by AI",
+  description: "Edit videos with the power of conversation.",
 };
 
 export default function RootLayout({
@@ -26,7 +29,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} ${lobster.variable}`}>{children}</body>
+      <body className={`${inter.className} ${lobster.variable}`}>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

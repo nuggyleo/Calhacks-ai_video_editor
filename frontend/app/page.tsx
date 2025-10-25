@@ -8,8 +8,28 @@ import MediaPanel from "@/components/media/MediaPanel";
 import PlayerPanel from "@/components/player/PlayerPanel";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { useAppStore } from "@/lib/store";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function Home() {
+  const { authStatus } = useAppStore();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (authStatus === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [authStatus, router]);
+
+  if (authStatus === 'loading' || authStatus === 'unauthenticated') {
+    return (
+      <div className="w-screen h-screen bg-black flex items-center justify-center">
+        <p className="text-white">Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <AppLayout>
       <PanelGroup direction="horizontal" className="w-full h-full">

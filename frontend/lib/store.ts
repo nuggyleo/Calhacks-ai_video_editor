@@ -35,13 +35,13 @@ interface AppState {
 
   // Chat/Messages
   messages: ChatMessage[];
-
-  // Playback state - The single source of truth for the active video
-  playbackState: {
-    isPlaying: boolean;
-    currentTime: number;
-  };
-
+  currentThreadId: string | null;
+  isThinking: boolean;
+  authStatus: 'loading' | 'authenticated' | 'unauthenticated';
+  isAuthenticated: boolean;
+  user: { email: string } | null;
+  token: string | null;
+  
   // Actions
   addMediaFile: (file: Omit<MediaFile, 'versionHistory' | 'redoHistory'>) => void;
   setActiveVideoId: (id: string) => void;
@@ -58,6 +58,9 @@ interface AppState {
   setPlaybackState: (updates: Partial<AppState['playbackState']>) => void;
   setActiveVideoVersion: (videoId: string, url: string) => void;
   setIsThinking: (isThinking: boolean) => void;
+  login: (user: { email: string }, token: string) => void;
+  logout: () => void;
+  setAuthStatus: (status: 'authenticated' | 'unauthenticated') => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -68,8 +71,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   playbackState: { isPlaying: false, currentTime: 0 },
   messages: [],
   isThinking: false,
-
-  addMediaFile: (file) =>
+  authStatus: 'loading',
+  isAuthenticated: false,
+  user: null,
+  token: null,
+  
+  addMediaFile: (file) => 
     set((state) => {
       const newFile: MediaFile = {
         ...file,
@@ -243,4 +250,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
   }),
   setIsThinking: (isThinking) => set({ isThinking }),
+  login: (user, token) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('userEmail', user.email);
+    set({ isAuthenticated: true, user, token, authStatus: 'authenticated' });
+  },
+  logout: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userEmail');
+    set({ isAuthenticated: false, user: null, token: null, authStatus: 'unauthenticated', currentVideoUrl: null, currentVideoId: null, mediaFiles: [], messages: [
+      {
+        id: 'init',
+        role: 'assistant',
+        content: "Welcome! Upload a video and let's start editing together.",
+      },
+    ]});
+  },
+  setAuthStatus: (status) => set({ authStatus: status }),
 }));

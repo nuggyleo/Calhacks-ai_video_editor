@@ -35,10 +35,12 @@ interface AppState {
   
   // Chat/Messages
   messages: ChatMessage[];
+  currentThreadId: string | null;
   
   // Actions
   addMediaFile: (file: MediaFile) => void;
   setCurrentVideo: (url: string, id: string) => void;
+  resetCurrentThread: () => void;
   deleteMediaFile: (id: string) => void;
   setUploadProgress: (progress: number) => void;
   setIsUploading: (isUploading: boolean) => void;
@@ -58,17 +60,27 @@ export const useAppStore = create<AppState>((set, get) => ({
   isUploading: false,
   uploadProgress: 0,
   messages: [],
+  currentThreadId: null,
   
   addMediaFile: (file: MediaFile) => 
     set((state) => ({ 
       mediaFiles: [...state.mediaFiles, file],
       currentVideoUrl: file.url,
-      currentVideoId: file.id
+      currentVideoId: file.id,
+      currentThreadId: `thread_${file.id}_${Date.now()}` // Create a new thread for a new video
     })),
     
   setCurrentVideo: (url: string, id: string) => 
-    set({ currentVideoUrl: url, currentVideoId: id }),
+    set({ 
+      currentVideoUrl: url, 
+      currentVideoId: id,
+      currentThreadId: `thread_${id}_${Date.now()}` // Reset thread when switching video
+    }),
   
+  resetCurrentThread: () => set(state => ({
+    currentThreadId: `thread_${state.currentVideoId}_${Date.now()}`
+  })),
+
   deleteMediaFile: (id: string) =>
     set((state) => {
       const updatedFiles = state.mediaFiles.filter(f => f.id !== id);

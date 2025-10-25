@@ -13,7 +13,7 @@ from backend.video_engine.editing.effects import apply_filter, add_subtitle, add
 from backend.video_engine.editing.audio import set_audio
 from backend.video_engine.editing.export import export_video
 from backend.ai_services.filter_mapper import map_description_to_filter
-
+from backend.video_engine.tools import trim_video, add_text_to_video, apply_filter_to_video, change_video_speed
 from moviepy.editor import VideoFileClip
 
 # 1. Define the tools for the agent

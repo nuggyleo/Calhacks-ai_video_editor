@@ -8,6 +8,7 @@ from backend.graph.nodes.query_parser import query_parser
 from backend.graph.nodes.answer_question import answer_question
 from backend.graph.nodes.execute_edit import execute_edit
 from backend.graph.nodes.chatbot import chatbot
+from backend.graph.nodes.vision_analyzer import vision_analyzer_node
 
 def query_router(state: GraphState):
     """
@@ -29,12 +30,16 @@ workflow.add_node("chatbot", chatbot)
 workflow.add_node("query_parser", query_parser)
 workflow.add_node("answer_question", answer_question)
 workflow.add_node("execute_edit", execute_edit)
+workflow.add_node("vision_analyzer", vision_analyzer_node)
 
 # Set the entry point
 workflow.set_entry_point("chatbot")
 
-# After the chatbot gets the query, it goes to the parser
-workflow.add_edge("chatbot", "query_parser")
+# After the chatbot gets the initial query, analyze the video's content.
+workflow.add_edge("chatbot", "vision_analyzer")
+
+# After analyzing, the enriched state goes to the query parser.
+workflow.add_edge("vision_analyzer", "query_parser")
 
 # Add the conditional edge from the query parser
 workflow.add_conditional_edges(

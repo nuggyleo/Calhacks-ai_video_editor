@@ -39,6 +39,10 @@ interface AppState {
   messages: ChatMessage[];
   currentThreadId: string | null;
   isThinking: boolean;
+  authStatus: 'loading' | 'authenticated' | 'unauthenticated';
+  isAuthenticated: boolean;
+  user: { email: string } | null;
+  token: string | null;
   
   // Actions
   addMediaFile: (file: Omit<MediaFile, 'versionHistory' | 'redoHistory'>) => void;
@@ -56,6 +60,9 @@ interface AppState {
   updateMediaFileDescription: (id: string, description: string) => void;
   setCurrentVideoUrl: (url: string, videoId: string) => void;
   setIsThinking: (isThinking: boolean) => void;
+  login: (user: { email: string }, token: string) => void;
+  logout: () => void;
+  setAuthStatus: (status: 'authenticated' | 'unauthenticated') => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -67,6 +74,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   messages: [],
   currentThreadId: null,
   isThinking: false,
+  authStatus: 'loading',
+  isAuthenticated: false,
+  user: null,
+  token: null,
   
   addMediaFile: (file) => 
     set((state) => {
@@ -224,4 +235,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
   }),
   setIsThinking: (isThinking) => set({ isThinking }),
+  login: (user, token) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('userEmail', user.email);
+    set({ isAuthenticated: true, user, token, authStatus: 'authenticated' });
+  },
+  logout: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userEmail');
+    set({ isAuthenticated: false, user: null, token: null, authStatus: 'unauthenticated', currentVideoUrl: null, currentVideoId: null, mediaFiles: [], messages: [
+      {
+        id: 'init',
+        role: 'assistant',
+        content: "Welcome! Upload a video and let's start editing together.",
+      },
+    ]});
+  },
+  setAuthStatus: (status) => set({ authStatus: status }),
 }));

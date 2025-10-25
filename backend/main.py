@@ -26,6 +26,11 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 from backend.graph.graph import app as graph_app
 from backend.graph.nodes.video_parser import get_video_analysis
+from backend.database import models
+from backend.database.database import engine
+from backend.api import endpoints
+
+models.Base.metadata.create_all(bind=engine)
 
 
 app = FastAPI(
@@ -42,6 +47,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(endpoints.router, prefix="/api")
 
 # Use the system's temporary directory which is always writable
 UPLOAD_DIR = Path(tempfile.gettempdir()) / "calhacks_uploads"
@@ -69,7 +76,7 @@ class EditCommandRequest(BaseModel):
 def read_root():
     return {"message": "Welcome to the AI Video Editor Backend!"}
 
-@app.post("/api/upload")
+@app.post("/api/upload", summary="Upload video file", description="Uploads a video file and returns its metadata.")
 async def upload_video(file: UploadFile = File(...)):
     """Upload a video file and return its analysis"""
     try:

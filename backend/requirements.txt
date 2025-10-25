@@ -124,6 +124,3 @@ zstandard==0.25.0
 
 # Database and Auth
 SQLAlchemy==2.0.31
-passlib[bcrypt]==2.0.0
-python-jose[cryptography]==3.3.0
-python-multipart==0.0.9

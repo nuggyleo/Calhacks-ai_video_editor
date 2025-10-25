@@ -1,6 +1,35 @@
 from moviepy.editor import VideoClip, TextClip, CompositeVideoClip
 import moviepy.video.fx.all as vfx
 
+def apply_effects(clip: VideoClip, filter_name: str, **kwargs) -> VideoClip:
+    """
+    Applies an effect to a video clip, intelligently handling both standard
+    fx filters and VideoClip methods.
+    """
+    # Special handling for MultiplyColor to ensure version compatibility
+    if filter_name == "MultiplyColor":
+        return clip.fl_image(lambda frame: frame * kwargs.get("factor", 1))
+
+    # Effects that are known to be unstable without pre-loading
+    unstable_effects = ["time_mirror"]
+
+    if filter_name in unstable_effects:
+        # Pre-load the clip's audio and mask to stabilize it, only if they exist
+        if clip.audio:
+            clip.audio = clip.audio.to_soundarray()
+        if clip.mask:
+            clip.mask = clip.mask.to_mask()
+
+    # Check if the filter is a method of the clip itself (e.g., fadein, rotate)
+    if hasattr(clip, filter_name):
+        return getattr(clip, filter_name)(**kwargs)
+    # Check if the filter is in the vfx module
+    elif hasattr(vfx, filter_name):
+        filter_func = getattr(vfx, filter_name)
+        return clip.fx(filter_func, **kwargs)
+    else:
+        raise ValueError(f"Effect '{filter_name}' not found in moviepy.")
+
 def apply_filter(clip: VideoClip, filter_name: str, **kwargs) -> VideoClip:
     """
     Applies a filter to a video clip.

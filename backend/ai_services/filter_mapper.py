@@ -1,70 +1,53 @@
-import os
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
-import json
+import re
 
 def map_description_to_filter(description: str):
     """
-    Maps a natural language description to a corresponding moviepy filter and its parameters.
+    Maps a natural language description to a corresponding moviepy filter and its parameters
+    using a more comprehensive, hard-coded mapping.
     """
+    desc = description.lower()
     
-    # A curated list of available filters and their accepted parameters.
-    # This helps the model to not hallucinate parameters.
-    available_filters = {
-        "blackwhite": [],
-        "invert_colors": [],
-        "fadein": ["duration"],
-        "fadeout": ["duration"],
-        "multiply_color": ["factor"],
-        "lum_contrast": ["lum", "contrast", "contrast_thr"],
-        "speedx": ["factor"],
-        "rotate": ["angle"],
-        "resize": ["width", "height"],
-        "crop": ["x1", "y1", "x2", "y2"],
-    }
-    
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """
-            You are an expert in video editing and the moviepy library. Your task is to map a user's natural language description of a filter to the most appropriate moviepy filter and its parameters from the provided list.
+    # --- Simple Filters (no parameters needed) ---
+    if "black and white" in desc or "grayscale" in desc:
+        return {"filter_name": "blackwhite", "parameters": {}}
+    if "invert" in desc:
+        return {"filter_name": "invert_colors", "parameters": {}}
+    if "mirror x" in desc or "flip horizontally" in desc:
+        return {"filter_name": "mirror_x", "parameters": {}}
+    if "mirror y" in desc or "flip vertically" in desc:
+        return {"filter_name": "mirror_y", "parameters": {}}
 
-            **Available Filters and Parameters:**
-            ```json
-            {filters}
-            ```
-
-            **Your Task:**
-            1.  Analyze the user's request: "{description}"
-            2.  Choose the best matching filter from the list.
-            3.  Determine the correct parameters for the filter based on the user's request. **Only use the parameters listed for each filter.** Do not invent new ones.
-            4.  If the user wants to apply a color tint (e.g., "make it green", "add a blue filter"), use the `multiply_color` filter with an RGB `factor`. For example, a green filter would be `[0, 1, 0]`. A red filter would be `[1, 0, 0]`.
-            5.  Your response must be a JSON object with two keys: "filter_name" and "parameters". If no parameters are needed, provide an empty object.
-
-            **Example 1:**
-            User Request: "make it black and white"
-            Response:
-            {{
-                "filter_name": "blackwhite",
-                "parameters": {{}}
-            }}
-
-            **Example 2:**
-            User Request: "add a strong green tint"
-            Response:
-            {{
-                "filter_name": "multiply_color",
-                "parameters": {{ "factor": [0, 1.5, 0] }}
-            }}
-        """),
-        ("human", "{description}")
-    ])
+    # --- Filters with Numerical Parameters ---
+    # Fade In/Out - now accepts "second" or "seconds"
+    fade_match = re.search(r"fade (in|out) for (\d+\.?\d*) second(s)?", desc)
+    if fade_match:
+        direction, duration = fade_match.groups()[0:2] # Ignore the optional 's'
+        return {
+            "filter_name": f"fade{direction}",
+            "parameters": {"duration": float(duration)}
+        }
     
-    model = ChatOpenAI(temperature=0)
-    parser = JsonOutputParser()
+    # Brightness/Contrast
+    if "darken" in desc or "brightness down" in desc:
+        return {"filter_name": "lum_contrast", "parameters": {"lum": -3}}
+    if "brighten" in desc or "brightness up" in desc:
+        return {"filter_name": "lum_contrast", "parameters": {"lum": 3}}
     
-    chain = prompt | model | parser
-    
-    return chain.invoke({
-        "filters": json.dumps(available_filters, indent=2),
-        "description": description
-    })
+    # Color Tints - now correctly uses "MultiplyColor"
+    if "sepia" in desc:
+        return {"filter_name": "MultiplyColor", "parameters": {"factor": [1.5, 1.1, 0.9]}}
+    if "green" in desc:
+        return {"filter_name": "MultiplyColor", "parameters": {"factor": [0, 1.3, 0]}}
+    if "blue" in desc:
+        return {"filter_name": "MultiplyColor", "parameters": {"factor": [0, 0, 1.3]}}
+    if "red" in desc:
+        return {"filter_name": "MultiplyColor", "parameters": {"factor": [1.3, 0, 0]}}
+
+    # Rotate
+    rotate_match = re.search(r"rotate by (\d+\.?\d*) degrees", desc)
+    if rotate_match:
+        angle = rotate_match.groups()[0]
+        return {"filter_name": "rotate", "parameters": {"angle": float(angle)}}
+
+    # Fallback for unsupported filters
+    raise ValueError(f"Filter description '{description}' is not supported or is incorrectly formatted.")

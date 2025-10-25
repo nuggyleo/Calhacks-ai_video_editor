@@ -17,7 +17,7 @@ If the user provides a direct, specific command with all necessary parameters (e
     *   "Trim the video from 10s to 30s." -> `{"action": "trim", "start_time": 10, "end_time": 30}`
     *   "Cut the first 3 seconds." -> `{"action": "trim", "start_time": 3}`
     *   "Add 'Hello World' at the top." -> `{"action": "add_text", "text": "Hello World", "position": "top"}`
-    *   "Make the video black and white." -> `{"action": "apply_filter", "filter_type": "grayscale"}`
+    *   "Make the video black and white." -> `{"action": "apply_filter", "filter_description": "black and white"}`
 
 **2. Functional Question (`tool_choice`: "functional_question")**
 If the user asks a general question about your capabilities, the editing process, or anything that does NOT require knowledge of the video's specific content (e.g., "What can you do?", "How do I add text?").

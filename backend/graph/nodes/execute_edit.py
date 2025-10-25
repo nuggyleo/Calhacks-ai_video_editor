@@ -74,12 +74,12 @@ def execute_edit(state: GraphState):
     full_request = f"""User Request: "{user_request}"
     Initial video file path: "{video_path}"
 
-    Your task is to execute a plan to fulfill this request.
-    Use the initial video path for your first tool call.
-    For any subsequent tool calls, you MUST use the new video path returned by the previous tool.
-    
-    IMPORTANT: After you have successfully called a tool and received the path to the new video, your job is done.
-    Your final answer should be ONLY a short confirmation message, like 'Video editing complete.' Do not output the path.
+    Your task is to execute a plan to fulfill this request. The request will only ever contain a single, simple edit.
+
+    **CRITICAL INSTRUCTION:**
+    1.  You must call the appropriate tool ONE TIME to perform the edit.
+    2.  After the tool is called and you receive a `ToolMessage` with the path to the new video, your job is complete.
+    3.  Your final response MUST NOT contain any more tool calls. It should be a simple confirmation message like "The video has been edited."
     """
 
     initial_agent_state = {

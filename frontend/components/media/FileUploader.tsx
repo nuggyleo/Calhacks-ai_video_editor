@@ -1,96 +1,48 @@
 'use client';
 
-// Video file uploader with drag-and-drop support
-import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
+import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 import { useAppStore } from '@/lib/store';
 
-const FileUploader = () => {
+const FileUploader = ({
+  accept,
+  title,
+  onFileUpload,
+  mediaType
+}: {
+  accept: string;
+  title: string;
+  onFileUpload: (file: File) => Promise<void>;
+  mediaType: 'video' | 'audio';
+}) => {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const {
-    addMediaFile,
-    setUploadProgress,
-    setIsUploading,
-    isUploading,
-    uploadProgress,
-    setCurrentVideo,
-    addMessage,
-    updateMessage,
-  } = useAppStore();
+  const { isUploading, uploadProgress } = useAppStore();
 
-  const handleUpload = async (file: File) => {
-    if (!file.type.startsWith('video/')) {
-      setError('Please upload a valid video file');
-      return;
-    }
+  const isThisUploaderBusy = isUploading === mediaType;
 
-    setError(null);
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-
-        const thinkingMessageId = `thinking-${Date.now()}`;
-        addMessage({
-          id: thinkingMessageId,
-          role: 'assistant',
-          content: 'Analyzing video content...',
-          timestamp: new Date(),
-          status: 'pending',
-        });
-
-        // Simulate a delay for "thinking"
-        setTimeout(() => {
-          // Add media file to the store
-          addMediaFile({
-            id: data.file_id,
-            filename: data.filename,
-            url: `http://localhost:8000${data.url}`,
-            type: file.type,
-            uploadedAt: new Date(),
-            description: data.description || "",
-            isAnalyzing: false,
-          });
-
-          // Update the "thinking" message with the analysis result
-          updateMessage(thinkingMessageId, {
-            content: `Video analysis complete! Here's what I found:\n\n\`\`\`\n${data.description}\n\`\`\``,
-            status: 'completed',
-            timestamp: new Date(),
-          });
-          
-          // Explicitly set the new video as the current one
-          setCurrentVideo(`http://localhost:8000${data.url}`, data.file_id);
-
-          setUploadProgress(100);
-          setTimeout(() => {
-            setIsUploading(false);
-            setUploadProgress(0);
-          }, 500);
-        }, 1500); // 1.5 second delay
-      } else {
-        const errorText = await response.text();
-        console.error('Upload failed:', errorText);
-        setError(`Upload failed: ${response.statusText}`);
-        setIsUploading(false);
+  const handleFileValidation = (file: File): boolean => {
+    const fileType = file.type;
+    const acceptedTypes = accept.split(',').map(t => t.trim());
+    const isValid = acceptedTypes.some(t => {
+      if (t.endsWith('/*')) {
+        return fileType.startsWith(t.slice(0, -1));
       }
-    } catch (err) {
-      console.error('Upload error:', err);
-      setError('An error occurred during upload.');
-      setIsUploading(false);
+      return fileType === t;
+    });
+
+    if (!isValid) {
+      setError(`Invalid file type. Please upload a ${accept}.`);
+      return false;
     }
+    setError(null);
+    return true;
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!handleFileValidation(file)) return;
+    await onFileUpload(file);
   };
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -106,22 +58,17 @@ const FileUploader = () => {
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      handleUpload(files[0]);
+      handleFileUpload(files[0]);
     }
   };
 
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      handleUpload(files[0]);
+      handleFileUpload(files[0]);
     }
-  };
-
-  const handleClick = () => {
-    fileInputRef.current?.click();
   };
 
   return (
@@ -130,7 +77,7 @@ const FileUploader = () => {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={handleClick}
+        onClick={() => fileInputRef.current?.click()}
         className={`
           border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
           transition-all duration-200
@@ -138,18 +85,19 @@ const FileUploader = () => {
             ? 'border-blue-500 bg-blue-500/10'
             : 'border-gray-600 hover:border-gray-500'
           }
-          ${isUploading ? 'pointer-events-none opacity-50' : ''}
+          ${isThisUploaderBusy ? 'pointer-events-none opacity-50' : ''}
         `}
       >
         <input
           ref={fileInputRef}
           type="file"
-          accept="video/*"
+          accept={accept}
           onChange={handleFileSelect}
           className="hidden"
+          disabled={isThisUploaderBusy}
         />
 
-        {isUploading ? (
+        {isThisUploaderBusy ? (
           <div className="space-y-2">
             <p className="text-gray-300">Uploading...</p>
             <div className="w-full bg-gray-700 rounded-full h-2">
@@ -162,12 +110,11 @@ const FileUploader = () => {
           </div>
         ) : (
           <div>
-            <p className="text-gray-300 text-lg mb-2">📹 Drag & Drop Video Here</p>
+            <p className="text-gray-300 text-lg mb-2">📹 {title}</p>
             <p className="text-sm text-gray-500">or click to browse</p>
           </div>
         )}
       </div>
-
       {error && (
         <div className="bg-red-500/10 border border-red-500 rounded-lg p-3">
           <p className="text-red-400 text-sm">{error}</p>

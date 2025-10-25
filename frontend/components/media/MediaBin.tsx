@@ -2,14 +2,80 @@
 
 // Media library displaying all uploaded videos
 import { useState } from 'react';
-import { useAppStore } from '@/lib/store';
+import { useAppStore, MediaFile } from '@/lib/store';
 import FileUploader from './FileUploader';
 
 const MediaBin = () => {
-  const { mediaBin, activeVideoId, setActiveVideoId, deleteMediaFile, renameMediaFile } = useAppStore();
+  const {
+    mediaBin, activeVideoId, setActiveVideoId,
+    deleteMediaFile, renameMediaFile,
+    addMediaFile, setIsUploading, setUploadProgress
+  } = useAppStore();
+
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+
+  const handleFileUpload = async (file: File) => {
+    const mediaType = file.type.startsWith('video/') ? 'video' : 'audio';
+    setIsUploading(mediaType);
+    setUploadProgress(0);
+
+    // --- FIX: Get the latest state directly from the store ---
+    const currentMediaBin = useAppStore.getState().mediaBin;
+    const existingFilesCount = currentMediaBin.filter(f => f.mediaType === mediaType).length;
+    const newFileName = `${mediaType === 'video' ? 'Video' : 'Audio'} ${existingFilesCount + 1}`;
+    // --- End Fix ---
+
+    if (mediaType === 'audio') {
+      // For audio, we bypass the backend processing and add it directly.
+      const audioUrl = URL.createObjectURL(file);
+      addMediaFile({
+        id: `audio-${Date.now()}`,
+        filename: newFileName, // Use the new name
+        url: audioUrl,
+        type: file.type,
+        mediaType: 'audio',
+        uploadedAt: new Date(),
+        description: "Audio file",
+        isAnalyzing: false,
+      });
+      setUploadProgress(100);
+      setTimeout(() => setIsUploading(false), 500);
+      return;
+    }
+
+    // --- VIDEO UPLOAD LOGIC ---
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/upload', { method: 'POST', body: formData });
+      if (response.ok) {
+        const data = await response.json();
+        const newFileId = data.file_id;
+        addMediaFile({
+          id: newFileId,
+          filename: newFileName, // Use the new name
+          url: `http://localhost:8000${data.url}`,
+          type: file.type,
+          mediaType: 'video', // Explicitly set
+          uploadedAt: new Date(),
+          description: data.description || "",
+          isAnalyzing: false,
+        });
+        setUploadProgress(100);
+        setActiveVideoId(newFileId); // <-- CORRECTED: Use the correct function
+      } else {
+        console.error("Upload failed");
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+    }
+    finally {
+      // Use a timeout to let the progress bar finish
+      setTimeout(() => setIsUploading(false), 500);
+    }
+  };
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();

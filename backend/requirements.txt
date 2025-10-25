@@ -7,12 +7,13 @@ uvicorn[standard]
 
 # Video Processing
 ffmpeg-python
+moviepy
 
 # AI / NLP
 openai
 langchain
 langgraph
-# python-dotenv # To manage API keys
+python-dotenv # To manage API keys
 
 # Background Tasks
 celery

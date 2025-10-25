@@ -12,4 +12,19 @@
 #   Lowers the volume of the `duck_track` (e.g., music) whenever there is
 #   audio in the `main_track` (e.g., dialogue). This is known as "audio ducking".
 
-pass # Placeholder
+from moviepy.editor import VideoClip, AudioFileClip
+
+def set_audio(clip: VideoClip, audio_path: str) -> VideoClip:
+    """
+    Replaces the audio of a video clip with a new audio file.
+
+    Args:
+        clip: The video clip to modify.
+        audio_path: The path to the new audio file.
+
+    Returns:
+        A new video clip with the replaced audio.
+    """
+    audio_clip = AudioFileClip(audio_path)
+    new_clip = clip.set_audio(audio_clip)
+    return new_clip

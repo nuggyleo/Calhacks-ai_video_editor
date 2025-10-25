@@ -17,4 +17,31 @@
 # - `export_with_custom_settings(...)`:
 #   A generic function that could take specific parameters for fine-tuned control.
 
-pass # Placeholder
+from moviepy.editor import VideoClip
+
+def export_video(
+    clip: VideoClip,
+    output_path: str,
+    fps: int = 30,
+    codec: str = "libx264",
+    audio_codec: str = "aac",
+    bitrate: str = "5000k",
+):
+    """
+    Exports a video clip to a file.
+
+    Args:
+        clip: The video clip to export.
+        output_path: The path to save the exported video.
+        fps: The frames per second of the output video.
+        codec: The video codec to use.
+        audio_codec: The audio codec to use.
+        bitrate: The bitrate of the output video.
+    """
+    clip.write_videofile(
+        output_path,
+        fps=fps,
+        codec=codec,
+        audio_codec=audio_codec,
+        bitrate=bitrate,
+    )

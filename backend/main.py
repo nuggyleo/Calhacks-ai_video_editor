@@ -43,10 +43,13 @@ app.add_middleware(
 
 # Use the system's temporary directory which is always writable
 UPLOAD_DIR = Path(tempfile.gettempdir()) / "calhacks_uploads"
+OUTPUT_DIR = PROJECT_ROOT / "outputs"
 print(f"--- Using temporary directory for uploads: {UPLOAD_DIR} ---")
+print(f"--- Using output directory for edited videos: {OUTPUT_DIR} ---")
 
-# Create the directory on startup
+# Create the directories on startup
 UPLOAD_DIR.mkdir(exist_ok=True, parents=True)
+OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
 
 # FFmpeg path
 FFMPEG_PATH = r'C:\\Program Files\\JianyingPro\\Apps\\5.7.0.11527\\ffmpeg.exe'
@@ -167,12 +170,19 @@ async def edit_video(request: EditCommandRequest):
         # Get the chatbot's response from the result
         execution_result = result.get("result", {})
         message = execution_result.get("message", "Sorry, I couldn't process that.")
+        output_path = execution_result.get("output_path") # Get the output path
         
+        # Construct the public URL for the video
+        output_url = None
+        if output_path:
+            output_url = f"/outputs/{Path(output_path).name}"
+
         response = {
             "status": "completed",
             "video_id": request.video_id,
             "command": request.command,
             "message": message,
+            "output_url": output_url, # Send the URL to the frontend
             "request_id": str(uuid.uuid4())
         }
         
@@ -185,3 +195,4 @@ async def edit_video(request: EditCommandRequest):
 
 # Mount static files
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+app.mount("/outputs", StaticFiles(directory=str(OUTPUT_DIR)), name="outputs")

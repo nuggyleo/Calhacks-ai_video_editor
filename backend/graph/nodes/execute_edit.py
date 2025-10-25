@@ -8,6 +8,7 @@ from backend.video_engine.editing.clips import split_video, concatenate_videos
 from backend.video_engine.editing.effects import apply_filter, add_subtitle
 from backend.video_engine.editing.audio import set_audio
 from backend.video_engine.editing.export import export_video
+from backend.ai_services.filter_mapper import map_description_to_filter
 
 from moviepy.editor import VideoFileClip
 
@@ -48,11 +49,20 @@ def execute_edit(state: GraphState):
                 start_time = action.get("start_time")
                 end_time = action.get("end_time")
 
-                # If the user says "cut the first 3 seconds", start_time would be 3 and end_time would be None.
-                # If they say "cut the last 3 seconds", end_time would be clip.duration - 3 and start_time would be None.
+                # Sanitize inputs from the LLM. It might send 'end' as a string.
+                if end_time == 'end' or end_time is None:
+                    end_time = clip.duration
                 
-                final_start = start_time if start_time is not None else 0
-                final_end = end_time if end_time is not None else clip.duration
+                # Default start time to the beginning if not provided.
+                if start_time is None:
+                    start_time = 0
+
+                # Ensure times are numbers before proceeding
+                try:
+                    final_start = float(start_time)
+                    final_end = float(end_time)
+                except (ValueError, TypeError):
+                    raise ValueError("Invalid start or end time provided by the model.")
 
                 clip = clip.subclip(final_start, final_end)
                 
@@ -68,9 +78,16 @@ def execute_edit(state: GraphState):
             
             elif action_type == "add_filter":
                 # Apply a filter to the video
-                filter_name = action.get("description", "")
-                clip = apply_filter(clip, "invert_colors")
-                print(f"✅ Applied filter: invert_colors")
+                filter_description = action.get("description", "")
+                
+                # Map the natural language description to a moviepy filter
+                filter_info = map_description_to_filter(filter_description)
+                filter_name = filter_info.get("filter_name")
+                parameters = filter_info.get("parameters", {})
+                
+                # Apply the filter
+                clip = apply_filter(clip, filter_name, **parameters)
+                print(f"✅ Applied filter: {filter_name} with parameters {parameters}")
             
             elif action_type == "speed_up":
                 # Speed up the video

@@ -158,11 +158,15 @@ def execute_edit(state: GraphState):
         action_to_tool = {
             'trim': 'trim_video',
             'add_text': 'add_text_to_video',
-            'filter': 'apply_filter_to_video',
+            'add_caption': 'add_text_to_video',  # Support both add_text and add_caption
+            'apply_filter': 'apply_filter_to_video',
+            'filter': 'apply_filter_to_video',  # Support both for backward compatibility
             'speed': 'change_video_speed',
+            'change_speed': 'change_video_speed',  # Support both
             'concatenate': 'concatenate_videos',
             'extract_audio': 'extract_audio',
-            'add_audio_to_video': 'add_audio_to_video'
+            'add_audio_to_video': 'add_audio_to_video',
+            'add_audio': 'add_audio_to_video'  # Support both
         }
         
         tool_name = action_to_tool.get(action_name, action_name)
@@ -187,7 +191,7 @@ def execute_edit(state: GraphState):
                     start_time=tool_args['start_time'],
                     end_time=tool_args.get('end_time')
                 )
-            elif action_name == 'add_text':
+            elif action_name in ['add_text', 'add_caption']:
                 result_path = video_tools.add_text_to_video.func(
                     active_video_id=tool_args.get('video_id', active_video_id),
                     media_bin=temp_media_bin,
@@ -198,13 +202,13 @@ def execute_edit(state: GraphState):
                     fontsize=tool_args.get('fontsize', 70),
                     color=tool_args.get('color', 'white')
                 )
-            elif action_name == 'filter':
+            elif action_name in ['filter', 'apply_filter']:
                 result_path = video_tools.apply_filter_to_video.func(
                     active_video_id=tool_args.get('video_id', active_video_id),
                     media_bin=temp_media_bin,
                     filter_description=tool_args['filter_description']
                 )
-            elif action_name == 'speed':
+            elif action_name in ['speed', 'change_speed']:
                 result_path = video_tools.change_video_speed.func(
                     active_video_id=tool_args.get('video_id', active_video_id),
                     media_bin=temp_media_bin,
@@ -220,7 +224,7 @@ def execute_edit(state: GraphState):
                     active_video_id=tool_args.get('video_id', active_video_id),
                     media_bin=temp_media_bin
                 )
-            elif action_name == 'add_audio_to_video':
+            elif action_name in ['add_audio_to_video', 'add_audio']:
                 result_path = video_tools.add_audio_to_video.func(
                     video_id=tool_args['video_id'],
                     audio_id=tool_args['audio_id'],

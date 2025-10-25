@@ -18,11 +18,11 @@ const FileUploader = ({
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { isUploading, uploadProgress } = useAppStore();
+  const { isUploading, uploadProgress, setIsUploading, setUploadProgress, addMessage, updateMessage, addMediaFile, setActiveVideoId } = useAppStore();
 
-  const isThisUploaderBusy = isUploading === mediaType;
+  const isThisUploaderBusy = isUploading;
 
-  const handleFileValidation = (file: File): boolean => {
+  const handleFileValidation = async (file: File): Promise<boolean> => {
     const fileType = file.type;
     const acceptedTypes = accept.split(',').map(t => t.trim());
     const isValid = acceptedTypes.some(t => {
@@ -81,7 +81,7 @@ const FileUploader = ({
             status: 'completed',
             timestamp: new Date(),
           });
-          
+
           // Explicitly set the new video as the active one
           setActiveVideoId(data.file_id);
 
@@ -101,7 +101,10 @@ const FileUploader = ({
       console.error('Upload error:', err);
       setError('An error occurred during upload.');
       setIsUploading(false);
+      return false;
     }
+
+    return true;
   };
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -119,14 +122,14 @@ const FileUploader = ({
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      handleFileUpload(files[0]);
+      handleFileValidation(files[0]);
     }
   };
 
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      handleFileUpload(files[0]);
+      handleFileValidation(files[0]);
     }
   };
 

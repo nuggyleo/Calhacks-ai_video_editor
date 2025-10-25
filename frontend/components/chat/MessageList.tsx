@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 
 const MessageList = () => {
-  const { currentVideoId, mediaFiles, messages, getMessagesByVideoId, addMessage, revertToPreviousVersion } = useAppStore();
+  const { currentVideoId, mediaFiles, messages, getMessagesByVideoId, addMessage, revertToPreviousVersion, redoLastAction } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Get current video name
@@ -148,6 +148,18 @@ const MessageList = () => {
                       </div>
                     )}
                     
+                    {/* Display Redo button on revert messages */}
+                    {message.content.includes('reverted to the previous version') && (currentVideo?.redoHistory?.length ?? 0) > 0 && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() => currentVideoId && redoLastAction(currentVideoId)}
+                          className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 text-xs rounded transition-colors"
+                        >
+                          ↪️ Redo
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between gap-2 mt-1 text-xs opacity-70">
                       <span>{formatTime(message.timestamp)}</span>
                       {message.status && (

@@ -11,7 +11,8 @@ export interface MediaFile {
   uploadedAt: Date;
   description: string;
   isAnalyzing: boolean;
-  versionHistory: string[]; // To track edit history for undo
+  versionHistory: string[]; // Acts as the "undo" stack
+  redoHistory: string[];    // Acts as the "redo" stack
 }
 
 export interface ChatMessage {
@@ -39,9 +40,10 @@ interface AppState {
   currentThreadId: string | null;
   
   // Actions
-  addMediaFile: (file: Omit<MediaFile, 'versionHistory'>) => void;
+  addMediaFile: (file: Omit<MediaFile, 'versionHistory' | 'redoHistory'>) => void;
   setCurrentVideo: (url: string, id: string) => void;
   revertToPreviousVersion: (videoId: string) => void;
+  redoLastAction: (videoId: string) => void;
   deleteMediaFile: (id: string) => void;
   setUploadProgress: (progress: number) => void;
   setIsUploading: (isUploading: boolean) => void;
@@ -67,7 +69,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => {
       const newFile: MediaFile = {
         ...file,
-        versionHistory: [file.url] // Start history with the original URL
+        versionHistory: [file.url], // Start history with the original URL
+        redoHistory: [],            // Redo history starts empty
       };
       return { 
         mediaFiles: [...state.mediaFiles, newFile],
@@ -93,11 +96,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     const file = state.mediaFiles.find(f => f.id === videoId);
     if (!file || file.versionHistory.length <= 1) return state; // Cannot revert original
 
+    const lastVersion = file.versionHistory[file.versionHistory.length - 1];
     const newHistory = file.versionHistory.slice(0, -1);
     const previousUrl = newHistory[newHistory.length - 1];
+    
+    // Move the reverted version to the redo stack
+    const newRedoHistory = [lastVersion, ...file.redoHistory];
 
     const newMediaFiles = state.mediaFiles.map(f => 
-      f.id === videoId ? { ...f, versionHistory: newHistory } : f
+      f.id === videoId ? { ...f, versionHistory: newHistory, redoHistory: newRedoHistory } : f
     );
 
     const revertMessage: ChatMessage = {
@@ -113,6 +120,36 @@ export const useAppStore = create<AppState>((set, get) => ({
       mediaFiles: newMediaFiles,
       currentVideoUrl: previousUrl,
       messages: [...state.messages, revertMessage],
+    };
+  }),
+
+  redoLastAction: (videoId) => set((state) => {
+    const file = state.mediaFiles.find(f => f.id === videoId);
+    if (!file || file.redoHistory.length === 0) return state; // Nothing to redo
+
+    const nextVersion = file.redoHistory[0];
+    const newRedoHistory = file.redoHistory.slice(1);
+    
+    // Move the redone version back to the version history
+    const newHistory = [...file.versionHistory, nextVersion];
+
+    const newMediaFiles = state.mediaFiles.map(f =>
+      f.id === videoId ? { ...f, versionHistory: newHistory, redoHistory: newRedoHistory } : f
+    );
+
+    const redoMessage: ChatMessage = {
+      id: `redo-${Date.now()}`,
+      videoId: videoId,
+      role: 'assistant',
+      content: '↪️ Redo successful. Restored the reverted version.',
+      timestamp: new Date(),
+      status: 'completed',
+    };
+
+    return {
+      mediaFiles: newMediaFiles,
+      currentVideoUrl: nextVersion,
+      messages: [...state.messages, redoMessage],
     };
   }),
 
@@ -173,8 +210,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCurrentVideoUrl: (url, videoId) => set(state => {
     const newMediaFiles = state.mediaFiles.map(file => {
       if (file.id === videoId) {
-        // Add the new URL to this video's history
-        return { ...file, versionHistory: [...file.versionHistory, url] };
+        // A new edit clears the redo history
+        return { ...file, versionHistory: [...file.versionHistory, url], redoHistory: [] };
       }
       return file;
     });

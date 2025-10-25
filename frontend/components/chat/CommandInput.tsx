@@ -59,16 +59,17 @@ const CommandInput = () => {
       
       const result = await response.json();
       
+      // If the backend sent back a new video URL, update the player and the message
+      const fullUrl = result.output_url ? `http://localhost:8000${result.output_url}` : undefined;
+
       updateMessage(assistantMessageId, {
         content: result.message || 'I received a response, but it was empty.',
         status: 'completed',
         timestamp: new Date(),
+        videoUrl: fullUrl, // Attach the new video URL to the message
       });
       
-      // If the backend sent back a new video URL, update the player
-      if (result.output_url) {
-        // Construct the full URL, assuming the backend is running on localhost:8000
-        const fullUrl = `http://localhost:8000${result.output_url}`;
+      if (fullUrl) {
         setCurrentVideoUrl(fullUrl);
       }
       

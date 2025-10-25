@@ -124,6 +124,18 @@ const MessageList = () => {
                         </p>
                       ))}
                     </div>
+
+                    {/* Display video if URL exists */}
+                    {message.videoUrl && (
+                      <div className="mt-3 rounded-lg overflow-hidden border border-gray-600">
+                        <video
+                          src={message.videoUrl}
+                          controls
+                          className="w-full"
+                        />
+                      </div>
+                    )}
+                    
                     <div className="flex items-center justify-between gap-2 mt-1 text-xs opacity-70">
                       <span>{formatTime(message.timestamp)}</span>
                       {message.status && (

@@ -1,10 +1,23 @@
 from langchain_core.tools import tool
 from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
+from moviepy.video.fx import all as vfx
 from typing import Optional
+from pathlib import Path
+import uuid
 
-# Note: For this agent-based approach, our tools will operate on file paths.
-# The agent will receive an input video path and must return a new output video path for each step.
-# This makes the process stateless and easier for the LLM to manage.
+# Define the output directory relative to this file's location
+# tools.py -> video_engine -> backend -> [project_root]
+OUTPUT_DIR = Path(__file__).parent.parent.parent / "outputs"
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+
+def get_output_path(input_path: str, suffix: str) -> str:
+    """Creates a unique output path in the designated OUTPUT_DIR."""
+    original_filename = Path(input_path).stem
+    unique_id = uuid.uuid4().hex[:8]
+    new_filename = f"{original_filename}_{suffix}_{unique_id}.mp4"
+    return str(OUTPUT_DIR / new_filename)
+
 
 @tool
 def trim_video(video_path: str, start_time: float, end_time: Optional[float] = None) -> str:
@@ -19,7 +32,7 @@ def trim_video(video_path: str, start_time: float, end_time: Optional[float] = N
         if end_time is None:
             end_time = clip.duration
         subclip = clip.subclip(start_time, end_time)
-        output_path = video_path.replace(".mp4", f"_trimmed_{start_time}_{end_time}.mp4")
+        output_path = get_output_path(video_path, "trimmed")
         subclip.write_videofile(output_path, codec="libx264")
     return output_path
 
@@ -39,7 +52,7 @@ def add_text_to_video(video_path: str, text: str, start_time: float, duration: f
     with VideoFileClip(video_path) as clip:
         text_clip = TextClip(text, fontsize=fontsize, color=color).set_position(position).set_start(start_time).set_duration(duration)
         final_clip = CompositeVideoClip([clip, text_clip])
-        output_path = video_path.replace(".mp4", f"_text_added.mp4")
+        output_path = get_output_path(video_path, "text_added")
         final_clip.write_videofile(output_path, codec="libx264")
     return output_path
 
@@ -54,15 +67,13 @@ def apply_filter_to_video(video_path: str, filter_type: str) -> str:
     """
     with VideoFileClip(video_path) as clip:
         if filter_type == 'grayscale':
-            # Example of applying a grayscale effect
             final_clip = clip.fx(vfx.blackwhite)
         elif filter_type == 'invert_colors':
-            # Example of inverting colors
             final_clip = clip.fx(vfx.invert_colors)
         else:
             raise ValueError(f"Unsupported filter type: {filter_type}. Supported filters are 'grayscale', 'invert_colors'.")
         
-        output_path = video_path.replace(".mp4", f"_{filter_type}.mp4")
+        output_path = get_output_path(video_path, filter_type)
         final_clip.write_videofile(output_path, codec="libx264")
     return output_path
 
@@ -76,6 +87,6 @@ def change_video_speed(video_path: str, speed_factor: float) -> str:
     """
     with VideoFileClip(video_path) as clip:
         final_clip = clip.speedx(speed_factor)
-        output_path = video_path.replace(".mp4", f"_speed_{speed_factor}x.mp4")
+        output_path = get_output_path(video_path, f"speed_{speed_factor}x")
         final_clip.write_videofile(output_path, codec="libx264")
     return output_path

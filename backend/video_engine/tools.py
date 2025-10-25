@@ -4,6 +4,8 @@ from moviepy.video.fx import all as vfx
 from typing import Optional
 from pathlib import Path
 import uuid
+import json
+from backend.ai_services.filter_mapper import map_description_to_filter
 
 # Define the output directory relative to this file's location
 # tools.py -> video_engine -> backend -> [project_root]
@@ -57,23 +59,26 @@ def add_text_to_video(video_path: str, text: str, start_time: float, duration: f
     return output_path
 
 @tool
-def apply_filter_to_video(video_path: str, filter_type: str) -> str:
+def apply_filter_to_video(video_path: str, filter_description: str) -> str:
     """
-    Applies a visual filter to the entire video.
-    Supported filters are: 'grayscale', 'invert_colors'.
+    Applies a visual filter to the entire video based on a natural language description.
+    For example, 'make the video black and white' or 'darken the video by 10%'.
     :param video_path: str, the file path of the input video.
-    :param filter_type: str, the type of filter to apply. Must be one of ['grayscale', 'invert_colors'].
+    :param filter_description: str, a natural language description of the filter to apply.
     :return: str, the file path of the filtered video.
     """
+    filter_info = map_description_to_filter(filter_description)
+    filter_name = filter_info.get("filter_name")
+    parameters = filter_info.get("parameters", {})
+
+    if not hasattr(vfx, filter_name):
+        raise ValueError(f"Filter '{filter_name}' not found in moviepy.video.fx.all")
+
     with VideoFileClip(video_path) as clip:
-        if filter_type == 'grayscale':
-            final_clip = clip.fx(vfx.blackwhite)
-        elif filter_type == 'invert_colors':
-            final_clip = clip.fx(vfx.invert_colors)
-        else:
-            raise ValueError(f"Unsupported filter type: {filter_type}. Supported filters are 'grayscale', 'invert_colors'.")
+        filter_func = getattr(vfx, filter_name)
+        final_clip = clip.fx(filter_func, **parameters)
         
-        output_path = get_output_path(video_path, filter_type)
+        output_path = get_output_path(video_path, filter_name)
         final_clip.write_videofile(output_path, codec="libx264")
     return output_path
 

@@ -12,183 +12,116 @@ const MessageList = () => {
   const { currentVideoId, mediaFiles, messages, getMessagesByVideoId, addMessage, revertToPreviousVersion, redoLastAction } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Get current video name
+  // Get current video
   const currentVideo = mediaFiles.find(f => f.id === currentVideoId);
 
   // Get messages for current video
   const videoMessages = currentVideoId ? getMessagesByVideoId(currentVideoId) : [];
 
-  // Auto-inject AI description as a chat message if none exists yet for the current video
+  // This useEffect is now simplified as we handle the initial message in FileUploader
   useEffect(() => {
-    if (!currentVideoId) return;
-
-    const hasAiDesc = videoMessages.some(m => m.id === `ai-desc-${currentVideoId}`);
-    const video = mediaFiles.find(f => f.id === currentVideoId);
-
-    if (!hasAiDesc && video?.description) {
-      addMessage({
-        id: `ai-desc-${currentVideoId}`,
-        videoId: currentVideoId,
-        role: 'assistant',
-        content: `**Video Analysis:**\n\n${video.description}`,
-        timestamp: new Date(),
-        status: 'completed',
-      });
-    }
-  }, [currentVideoId, mediaFiles, videoMessages, addMessage]);
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
+    // Auto-scroll to bottom when new messages arrive
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [videoMessages]);
 
-  // Format timestamp
-  const formatTime = (date: Date) => {
-    const d = new Date(date);
-    return d.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-  };
+  const formatTime = (date: Date) => new Date(date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-  // Find the ID of the last message that has a video URL
+  // Find the ID of the last message that has a video URL for revert logic
   const lastVideoMessageId = videoMessages.slice().reverse().find(m => m.videoUrl)?.id;
 
   return (
-    <div className="flex-grow mb-4 p-4 bg-gray-900 rounded-lg flex flex-col overflow-hidden">
-      {/* Header with current video info */}
-      <div className="mb-4 pb-3 border-b border-gray-700">
-        {currentVideoId ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-400">EDITING:</span>
-            <span className="text-sm font-medium text-blue-300">{currentVideo?.filename}</span>
+    <div className="h-full overflow-y-auto p-4 space-y-6">
+      {videoMessages.length === 0 ? (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center text-gray-500">
+            <p className="text-lg">
+              {currentVideoId ? 'Start by sending a command' : 'Select a video to begin'}
+            </p>
+            {currentVideoId && (
+              <p className="text-sm mt-2">e.g., "Trim the first 5 seconds"</p>
+            )}
           </div>
-        ) : (
-          <div className="text-xs text-yellow-400">
-            ⚠️ Select a video to start editing
-          </div>
-        )}
-      </div>
-
-      {/* Messages container */}
-      <div className="flex-grow overflow-y-auto space-y-3">
-        {videoMessages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <p className="text-gray-400 text-sm font-medium mb-1">
-                {currentVideoId
-                  ? 'No commands yet. Send your first editing command!'
-                  : 'No video selected'}
-              </p>
-              <p className="text-gray-600 text-xs">
-                {currentVideoId
-                  ? 'Example: "Trim the first 10 seconds" or "Add fade out effect"'
-                  : 'Upload or select a video from the Media panel'}
-              </p>
-            </div>
-          </div>
-        ) : (
-          videoMessages.map((message) => (
+        </div>
+      ) : (
+        <>
+          {videoMessages.map((message) => (
             <div
               key={message.id}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex items-start gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
+              {/* Icon */}
+              {message.role === 'assistant' && (
+                <div className="w-8 h-8 flex-shrink-0 bg-gray-600 rounded-full flex items-center justify-center">
+                  🤖
+                </div>
+              )}
+
+              {/* Message Bubble */}
               <div
                 className={`
-                  max-w-xs px-4 py-3 rounded-lg text-sm
+                  max-w-full px-4 py-3 rounded-2xl
                   ${message.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-br-none'
-                    : 'bg-gray-800 text-gray-200 rounded-bl-none border border-gray-700'
+                    ? 'bg-blue-600 text-white rounded-br-lg'
+                    : 'bg-gray-800 text-gray-200 rounded-bl-lg'
                   }
                 `}
               >
-                <div className="flex items-start gap-2">
-                  {message.role === 'user' ? (
-                    <span className="flex-shrink-0 mt-0.5">👤</span>
-                  ) : (
-                    <span className="flex-shrink-0 mt-0.5">🤖</span>
-                  )}
-                  <div className="flex-grow">
-                    <div className="break-words whitespace-pre-wrap prose prose-invert max-w-none text-sm">
-                      {message.content.split('\n\n').map((paragraph, i) => (
-                        <p key={i} className="mb-2 last:mb-0">
-                          {paragraph.split('\n').map((line, j) => (
-                            <span key={j} className="block">
-                              {line.split(/(\*\*.*?\*\*)/g).map((part, k) =>
-                                part.startsWith('**') && part.endsWith('**') ? (
-                                  <strong key={k}>{part.slice(2, -2)}</strong>
-                                ) : (
-                                  part
-                                )
-                              )}
-                            </span>
-                          ))}
-                        </p>
-                      ))}
-                    </div>
-
-                    {/* Display video if URL exists */}
-                    {message.videoUrl && (
-                      <div className="mt-3 rounded-lg overflow-hidden border border-gray-600 relative group">
-                        <video
-                          src={message.videoUrl}
-                          controls
-                          className="w-full"
-                        />
-                        {/* Show Revert button only on the last video message */}
-                        {message.id === lastVideoMessageId && (currentVideo?.versionHistory?.length ?? 0) > 1 && (
-                          <button
-                            onClick={() => currentVideoId && revertToPreviousVersion(currentVideoId)}
-                            className="absolute top-2 right-2 bg-black/50 text-white px-3 py-1 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
-                          >
-                            ↩️ Revert
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Display Redo button on revert messages */}
-                    {message.content.includes('reverted to the previous version') && (currentVideo?.redoHistory?.length ?? 0) > 0 && (
-                      <div className="mt-2">
-                        <button
-                          onClick={() => currentVideoId && redoLastAction(currentVideoId)}
-                          className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 text-xs rounded transition-colors"
-                        >
-                          ↪️ Redo
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between gap-2 mt-1 text-xs opacity-70">
-                      <span>{formatTime(message.timestamp)}</span>
-                      {message.status && (
-                        <span className={`
-                          px-2 py-0.5 rounded-full text-xs
-                          ${message.status === 'pending' ? 'bg-yellow-900/30 text-yellow-300' : ''}
-                          ${message.status === 'completed' ? 'bg-green-900/30 text-green-300' : ''}
-                          ${message.status === 'error' ? 'bg-red-900/30 text-red-300' : ''}
-                        `}>
-                          {message.status === 'pending' ? '⏳ Processing' : ''}
-                          {message.status === 'completed' ? '✅ Done' : ''}
-                          {message.status === 'error' ? '❌ Error' : ''}
+                <div className="prose prose-invert prose-sm max-w-none break-words whitespace-pre-wrap">
+                  {message.content.split('\n\n').map((paragraph, i) => (
+                    <p key={i} className="mb-2 last:mb-0">
+                      {paragraph.split('\n').map((line, j) => (
+                        <span key={j} className="block">
+                          {line.split(/(\*\*.*?\*\*)/g).map((part, k) =>
+                            part.startsWith('**') && part.endsWith('**') ? (
+                              <strong key={k}>{part.slice(2, -2)}</strong>
+                            ) : (
+                              part
+                            )
+                          )}
                         </span>
-                      )}
-                    </div>
-                  </div>
+                      ))}
+                    </p>
+                  ))}
                 </div>
-              </div>
-            </div>
-          ))
-        )}
-        <div ref={messagesEndRef} />
-      </div>
 
-      {/* Footer with message count */}
-      {videoMessages.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500">
-          {videoMessages.length} message{videoMessages.length !== 1 ? 's' : ''}
-        </div>
+                {/* Video Attachment */}
+                {message.videoUrl && (
+                  <div className="mt-3 rounded-lg overflow-hidden border border-gray-600 relative group">
+                    <video src={message.videoUrl} controls className="w-full" />
+                    {message.id === lastVideoMessageId && (currentVideo?.versionHistory?.length ?? 0) > 1 && (
+                      <button
+                        onClick={() => currentVideoId && revertToPreviousVersion(currentVideoId)}
+                        className="absolute top-2 right-2 bg-black/50 text-white px-3 py-1 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                      >
+                        ↩️ Revert
+                      </button>
+                    )}
+                  </div>
+                )}
+                
+                {/* Redo Button */}
+                {message.content.includes('reverted to the previous version') && (currentVideo?.redoHistory?.length ?? 0) > 0 && (
+                  <div className="mt-2">
+                    <button
+                      onClick={() => currentVideoId && redoLastAction(currentVideoId)}
+                      className="bg-gray-600 hover:bg-gray-500 text-white px-3 py-1 text-xs rounded transition-colors"
+                    >
+                      ↪️ Redo
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* User Icon */}
+              {message.role === 'user' && (
+                <div className="w-8 h-8 flex-shrink-0 bg-gray-600 rounded-full flex items-center justify-center">
+                  👤
+                </div>
+              )}
+            </div>
+          ))}
+          <div ref={messagesEndRef} />
+        </>
       )}
     </div>
   );

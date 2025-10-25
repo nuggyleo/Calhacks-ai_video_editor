@@ -16,6 +16,8 @@ const FileUploader = () => {
     isUploading,
     uploadProgress,
     setCurrentVideo,
+    addMessage,
+    updateMessage,
   } = useAppStore();
 
   const handleUpload = async (file: File) => {
@@ -40,25 +42,45 @@ const FileUploader = () => {
       if (response.ok) {
         const data = await response.json();
 
-        // Add media file
-        addMediaFile({
-          id: data.file_id,
-          filename: data.filename,
-          url: `http://localhost:8000${data.url}`,
-          type: file.type,
-          uploadedAt: new Date(),
-          description: data.description || "",
-          isAnalyzing: false,
+        const thinkingMessageId = `thinking-${Date.now()}`;
+        addMessage({
+          id: thinkingMessageId,
+          videoId: data.file_id,
+          role: 'assistant',
+          content: '正在理解视频内容...',
+          timestamp: new Date(),
+          status: 'pending',
         });
 
-        // Explicitly set the new video as the current one to trigger the analysis message
-        setCurrentVideo(`http://localhost:8000${data.url}`, data.file_id);
-
-        setUploadProgress(100);
+        // Simulate a delay for "thinking"
         setTimeout(() => {
-          setIsUploading(false);
-          setUploadProgress(0);
-        }, 500);
+          // Add media file to the store
+          addMediaFile({
+            id: data.file_id,
+            filename: data.filename,
+            url: `http://localhost:8000${data.url}`,
+            type: file.type,
+            uploadedAt: new Date(),
+            description: data.description || "",
+            isAnalyzing: false,
+          });
+
+          // Update the "thinking" message with the analysis result
+          updateMessage(thinkingMessageId, {
+            content: `我理解完啦. 这是视频的基本信息: \n\n\`\`\`\n${data.description}\n\`\`\``,
+            status: 'completed',
+            timestamp: new Date(),
+          });
+          
+          // Explicitly set the new video as the current one
+          setCurrentVideo(`http://localhost:8000${data.url}`, data.file_id);
+
+          setUploadProgress(100);
+          setTimeout(() => {
+            setIsUploading(false);
+            setUploadProgress(0);
+          }, 500);
+        }, 1500); // 1.5 second delay
       } else {
         const errorText = await response.text();
         console.error('Upload failed:', errorText);

@@ -38,6 +38,7 @@ interface AppState {
   // Chat/Messages
   messages: ChatMessage[];
   currentThreadId: string | null;
+  isThinking: boolean;
   
   // Actions
   addMediaFile: (file: Omit<MediaFile, 'versionHistory' | 'redoHistory'>) => void;
@@ -54,6 +55,7 @@ interface AppState {
   renameMediaFile: (id: string, newFilename: string) => void;
   updateMediaFileDescription: (id: string, description: string) => void;
   setCurrentVideoUrl: (url: string, videoId: string) => void;
+  setIsThinking: (isThinking: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -64,6 +66,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   uploadProgress: 0,
   messages: [],
   currentThreadId: null,
+  isThinking: false,
   
   addMediaFile: (file) => 
     set((state) => {
@@ -220,4 +223,5 @@ export const useAppStore = create<AppState>((set, get) => ({
       mediaFiles: newMediaFiles,
     };
   }),
+  setIsThinking: (isThinking) => set({ isThinking }),
 }));

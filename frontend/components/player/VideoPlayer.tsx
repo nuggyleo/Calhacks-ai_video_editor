@@ -212,13 +212,10 @@ const VideoPlayer = () => {
         onDrop={handleDrop}
         onClick={handleClick}
         className={`
-          flex-grow bg-gray-900 flex items-center justify-center rounded-lg cursor-pointer
-          transition-all duration-200 border-2 border-dashed
-          ${isDraggingFile
-            ? 'border-blue-500 bg-blue-500/10'
-            : 'border-gray-600 hover:border-gray-500'
-          }
-          ${isUploading ? 'pointer-events-none opacity-50' : ''}
+          flex-grow flex items-center justify-center cursor-pointer
+          transition-all duration-300 relative overflow-hidden
+          ${isDraggingFile ? 'bg-purple-500/5' : 'bg-black'}
+          ${isUploading ? 'pointer-events-none' : ''}
         `}
       >
         <input
@@ -229,31 +226,98 @@ const VideoPlayer = () => {
           className="hidden"
         />
 
-        <div className="text-center">
+        {/* Background gradient effect */}
+        <div className="absolute inset-0 bg-gradient-radial from-purple-900/20 via-transparent to-transparent opacity-50" />
+
+        <div className="text-center space-y-8 z-10 px-8">
           {isUploading ? (
-            <div className="space-y-4">
-              <p className="text-gray-300 text-lg">Uploading...</p>
-              <div className="w-48 bg-gray-700 rounded-full h-2">
-                <div
-                  className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: '100%' }}
-                />
+            <div className="space-y-6 animate-pulse">
+              <div className="font-lobster text-6xl bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+                Cue
+              </div>
+              <p className="text-gray-400 text-xl font-light">Processing your video...</p>
+              <div className="w-64 h-1 bg-gray-800 rounded-full mx-auto overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 animate-shimmer" />
               </div>
             </div>
           ) : (
-            <div className="space-y-3">
-              <p className="text-5xl">🎬</p>
-              <p className="text-gray-300 text-xl font-medium">Drag & Drop Video Here</p>
-              <p className="text-gray-500 text-sm">or click to browse</p>
+            <div className="space-y-8">
+              {/* Logo */}
+              <div className="font-lobster text-8xl bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent animate-pulse-slow">
+                Cue
+              </div>
+
+              {/* Upload prompt */}
+              <div className="space-y-4">
+                <div className={`
+                  w-24 h-24 mx-auto rounded-full flex items-center justify-center
+                  bg-gradient-to-br from-purple-600/20 to-blue-600/20 border-2
+                  transition-all duration-300
+                  ${isDraggingFile 
+                    ? 'border-purple-500 scale-110' 
+                    : 'border-gray-700 hover:border-purple-600 hover:scale-105'
+                  }
+                `}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" x2="12" y1="3" y2="15"/>
+                  </svg>
+                </div>
+                
+                <div className="space-y-2">
+                  <p className="text-2xl font-light text-gray-300">
+                    {isDraggingFile ? 'Drop your video here' : 'Upload a video to start'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Drag & drop or click to browse
+                  </p>
+                </div>
+              </div>
+
+              {/* Supported formats */}
+              <div className="flex items-center justify-center gap-3 text-xs text-gray-600">
+                <span>MP4</span>
+                <span>•</span>
+                <span>MOV</span>
+                <span>•</span>
+                <span>AVI</span>
+                <span>•</span>
+                <span>WebM</span>
+              </div>
             </div>
           )}
 
           {uploadError && !isUploading && (
-            <div className="mt-4 p-3 bg-red-500/10 border border-red-500 rounded-lg">
+            <div className="mt-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl backdrop-blur-sm">
               <p className="text-red-400 text-sm">{uploadError}</p>
             </div>
           )}
         </div>
+
+        <style jsx>{`
+          @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(400%); }
+          }
+          
+          @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+          }
+
+          .animate-shimmer {
+            animation: shimmer 2s infinite;
+          }
+
+          .animate-pulse-slow {
+            animation: pulse-slow 3s ease-in-out infinite;
+          }
+
+          .bg-gradient-radial {
+            background: radial-gradient(circle at center, var(--tw-gradient-stops));
+          }
+        `}</style>
       </div>
     );
   }

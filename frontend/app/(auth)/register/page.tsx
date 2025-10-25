@@ -77,8 +77,8 @@ const RegisterPage = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-5">
             <div>
-              <label htmlFor="email-address" className="block text-sm font-medium text-gray-400 mb-2 tracking-wide">
-                EMAIL
+              <label htmlFor="email-address" className="block font-lobster text-base text-gray-400 mb-3">
+                Email
               </label>
               <input
                 id="email-address"
@@ -93,8 +93,8 @@ const RegisterPage = () => {
               />
             </div>
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-400 mb-2 tracking-wide">
-                PASSWORD
+              <label htmlFor="password" className="block font-lobster text-base text-gray-400 mb-3">
+                Password
               </label>
               <input
                 id="password"
@@ -109,8 +109,8 @@ const RegisterPage = () => {
               />
             </div>
             <div>
-              <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-400 mb-2 tracking-wide">
-                CONFIRM PASSWORD
+              <label htmlFor="confirm-password" className="block font-lobster text-base text-gray-400 mb-3">
+                Confirm Password
               </label>
               <input
                 id="confirm-password"

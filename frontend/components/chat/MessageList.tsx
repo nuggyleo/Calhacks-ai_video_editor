@@ -12,7 +12,8 @@ const MessageList = () => {
   const {
     activeVideoId, mediaBin, messages, addMessage,
     revertToPreviousVersion, redoLastAction,
-    setActiveVideoVersion, setPlaybackState, addEditedMediaToLibrary
+    setActiveVideoVersion, setPlaybackState, addEditedMediaToLibrary,
+    saveVideo
   } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -152,10 +153,39 @@ const MessageList = () => {
                         );
                       })()}
                     </div>
-                    {/* Add to Media button */}
-                    <button
-                      onClick={() => {
-                        // Improved media type detection - check URL for audio extensions
+                    {/* Action buttons */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          // Improved media type detection - check URL for audio extensions
+                          const urlLower = message.videoUrl!.toLowerCase();
+                          const isAudio = message.mediaType === 'audio' || 
+                                         urlLower.includes('.mp3') || 
+                                         urlLower.includes('.wav') || 
+                                         urlLower.includes('.m4a') || 
+                                         urlLower.includes('.aac') ||
+                                         urlLower.includes('extracted_audio');
+                          const mediaType = isAudio ? 'audio' : 'video';
+                          
+                          // Get filename from URL if not provided
+                          const urlFilename = message.videoUrl!.split('/').pop() || '';
+                          const filename = message.mediaFilename || urlFilename || `${mediaType}-${Date.now()}.${mediaType === 'audio' ? 'mp3' : 'mp4'}`;
+                          
+                          console.log('Adding to library:', { url: message.videoUrl, filename, mediaType, messageMediaType: message.mediaType, urlLower });
+                          addEditedMediaToLibrary(message.videoUrl!, filename, mediaType);
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all transform hover:scale-[1.02]"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                          <polyline points="7 10 12 15 17 10"/>
+                          <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Add to Media
+                      </button>
+                      
+                      {/* Save to Project button - only show for videos */}
+                      {(() => {
                         const urlLower = message.videoUrl!.toLowerCase();
                         const isAudio = message.mediaType === 'audio' || 
                                        urlLower.includes('.mp3') || 
@@ -163,33 +193,52 @@ const MessageList = () => {
                                        urlLower.includes('.m4a') || 
                                        urlLower.includes('.aac') ||
                                        urlLower.includes('extracted_audio');
-                        const mediaType = isAudio ? 'audio' : 'video';
                         
-                        // Get filename from URL if not provided
-                        const urlFilename = message.videoUrl!.split('/').pop() || '';
-                        const filename = message.mediaFilename || urlFilename || `${mediaType}-${Date.now()}.${mediaType === 'audio' ? 'mp3' : 'mp4'}`;
+                        console.log('Save button check:', { 
+                          messageId: message.id, 
+                          hasVideoUrl: !!message.videoUrl, 
+                          isAudio, 
+                          mediaType: message.mediaType,
+                          url: message.videoUrl 
+                        });
                         
-                        console.log('Adding to library:', { url: message.videoUrl, filename, mediaType, messageMediaType: message.mediaType, urlLower });
-                        addEditedMediaToLibrary(message.videoUrl!, filename, mediaType);
-                      }}
-                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all transform hover:scale-[1.02]"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                      </svg>
-                      Add to {(() => {
-                        const urlLower = message.videoUrl!.toLowerCase();
-                        const isAudio = message.mediaType === 'audio' || 
-                                       urlLower.includes('.mp3') || 
-                                       urlLower.includes('.wav') || 
-                                       urlLower.includes('.m4a') || 
-                                       urlLower.includes('.aac') ||
-                                       urlLower.includes('extracted_audio');
-                        return isAudio ? 'Audio' : 'Videos';
-                      })()}
-                    </button>
+                        return !isAudio;
+                      })() && (
+                        <button
+                          onClick={async () => {
+                            const urlFilename = message.videoUrl!.split('/').pop() || '';
+                            const filename = message.mediaFilename || urlFilename || `video-${Date.now()}.mp4`;
+                            console.log('Saving video to project:', { url: message.videoUrl, filename, description: message.content });
+                            
+                            try {
+                              await saveVideo(message.videoUrl!, filename, message.content);
+                              // Show success feedback
+                              const button = document.activeElement as HTMLButtonElement;
+                              if (button) {
+                                const originalText = button.innerHTML;
+                                button.innerHTML = '✅ Saved!';
+                                button.disabled = true;
+                                setTimeout(() => {
+                                  button.innerHTML = originalText;
+                                  button.disabled = false;
+                                }, 2000);
+                              }
+                            } catch (error) {
+                              console.error('Failed to save video:', error);
+                              alert('Failed to save video');
+                            }
+                          }}
+                          className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all transform hover:scale-[1.02] shadow-lg"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                            <polyline points="17 21 17 13 7 13 7 21"/>
+                            <polyline points="7 3 7 8 15 8"/>
+                          </svg>
+                          💾 Save to Project
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
                 <div className="text-xs text-gray-400 mt-2 text-right">{formatTime(message.timestamp)}</div>

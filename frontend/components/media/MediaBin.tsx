@@ -6,10 +6,11 @@ import { useAppStore } from '@/lib/store';
 import FileUploader from './FileUploader';
 
 const MediaBin = () => {
-  const { mediaBin, activeVideoId, setActiveVideoId, deleteMediaFile, renameMediaFile } = useAppStore();
+  const { mediaBin, activeVideoId, setActiveVideoId, deleteMediaFile, renameMediaFile, saveVideo } = useAppStore();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   // Filter to show only video files
   const videoFiles = mediaBin.filter(file => file.mediaType === 'video');
@@ -41,6 +42,19 @@ const MediaBin = () => {
     e.stopPropagation();
     setEditingId(null);
     setEditingName('');
+  };
+  
+  const handleSaveVideo = async (file: typeof videoFiles[0], e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSavingId(file.id);
+    try {
+      await saveVideo(file.url, file.filename, file.description);
+      setTimeout(() => setSavingId(null), 2000); // Show success for 2 seconds
+    } catch (error) {
+      console.error('Failed to save video:', error);
+      alert('Failed to save video');
+      setSavingId(null);
+    }
   };
 
   const formatDate = (date: Date) => {
@@ -105,6 +119,24 @@ const MediaBin = () => {
                 {/* Action buttons */}
                 {hoveredId === file.id && editingId !== file.id && (
                   <div className="ml-2 flex gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => handleSaveVideo(file, e)}
+                      className="p-1 hover:bg-green-500/20 rounded"
+                      title={savingId === file.id ? "Saved!" : "Save to collection"}
+                      disabled={savingId === file.id}
+                    >
+                      {savingId === file.id ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                          <polyline points="17 21 17 13 7 13 7 21"/>
+                          <polyline points="7 3 7 8 15 8"/>
+                        </svg>
+                      )}
+                    </button>
                     <button
                       onClick={(e) => handleRenameClick(file.id, file.filename, e)}
                       className="p-1 hover:bg-gray-600 rounded"

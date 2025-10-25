@@ -27,6 +27,26 @@ export interface ChatMessage {
   mediaFilename?: string; // Filename for the result
 }
 
+export interface SavedVideo {
+  id: number;
+  user_id: number;
+  filename: string;
+  url: string;
+  thumbnail?: string;
+  description?: string;
+  created_at: string;
+}
+
+export interface Project {
+  id: number;
+  name: string;
+  user_id: number;
+  created_at: string;
+  updated_at: string;
+  media_bin: string; // JSON string
+  chat_history: string; // JSON string
+}
+
 interface AppState {
   // Media files
   mediaBin: MediaFile[];
@@ -52,6 +72,12 @@ interface AppState {
   user: { email: string } | null;
   token: string | null;
   
+  // Project Management
+  currentProject: Project | null;
+  projects: Project[];
+  savedVideos: SavedVideo[];
+  isProjectLoading: boolean;
+  
   // Actions
   addMediaFile: (file: Omit<MediaFile, 'versionHistory' | 'redoHistory'>) => void;
   setActiveVideoId: (id: string) => void;
@@ -73,6 +99,18 @@ interface AppState {
   login: (user: { email: string }, token: string) => void;
   logout: () => void;
   setAuthStatus: (status: 'authenticated' | 'unauthenticated') => void;
+  
+  // Project Management Actions
+  loadProjects: () => Promise<void>;
+  createProject: (name: string) => Promise<Project>;
+  switchProject: (projectId: number) => Promise<void>;
+  saveCurrentProject: () => Promise<void>;
+  deleteProject: (projectId: number) => Promise<void>;
+  
+  // Saved Videos Actions
+  saveVideo: (videoUrl: string, filename: string, description?: string) => Promise<void>;
+  loadSavedVideos: () => Promise<void>;
+  deleteSavedVideo: (videoId: number) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -89,6 +127,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   isAuthenticated: false,
   user: null,
   token: null,
+  currentProject: null,
+  projects: [],
+  savedVideos: [],
+  isProjectLoading: false,
   
   addMediaFile: (file) => 
     set((state) => {
@@ -286,14 +328,265 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userEmail');
-    set({ isAuthenticated: false, user: null, token: null, authStatus: 'unauthenticated', activeVideoId: null, mediaBin: [], messages: [
-      {
-        id: 'init',
-        role: 'assistant',
-        content: "Welcome! Upload a video and let's start editing together.",
-        timestamp: new Date(),
-      },
-    ]});
+    set({ 
+      isAuthenticated: false, 
+      user: null, 
+      token: null, 
+      authStatus: 'unauthenticated', 
+      activeVideoId: null, 
+      activeAudioId: null,
+      mediaBin: [], 
+      currentProject: null,
+      projects: [],
+      savedVideos: [],
+      messages: [
+        {
+          id: 'init',
+          role: 'assistant',
+          content: "Welcome! Upload a video and let's start editing together.",
+          timestamp: new Date(),
+        },
+      ]
+    });
   },
   setAuthStatus: (status) => set({ authStatus: status }),
+  
+  // ==================== PROJECT MANAGEMENT ====================
+  
+  loadProjects: async () => {
+    const { user, createProject, switchProject } = get();
+    if (!user) return;
+    
+    try {
+      const response = await fetch(`http://localhost:8000/api/projects/?user_email=${user.email}`);
+      if (response.ok) {
+        let projects = await response.json();
+        
+        // If user has no projects, create a default one
+        if (projects.length === 0) {
+          console.log('No projects found, creating default project...');
+          const defaultProject = await createProject('My First Project');
+          projects = [defaultProject];
+        }
+        
+        set({ projects });
+        
+        // If no current project and user has projects, load the first one
+        if (!get().currentProject && projects.length > 0) {
+          await switchProject(projects[0].id);
+        }
+        
+        // Load saved videos (global, not per-project)
+        await get().loadSavedVideos();
+      }
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+    }
+  },
+  
+  createProject: async (name: string) => {
+    const { user } = get();
+    if (!user) throw new Error('User not authenticated');
+    
+    set({ isProjectLoading: true });
+    try {
+      const response = await fetch(`http://localhost:8000/api/projects/?user_email=${user.email}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      
+      if (response.ok) {
+        const newProject = await response.json();
+        set(state => ({ 
+          projects: [...state.projects, newProject],
+          isProjectLoading: false 
+        }));
+        return newProject;
+      } else {
+        throw new Error('Failed to create project');
+      }
+    } catch (error) {
+      set({ isProjectLoading: false });
+      throw error;
+    }
+  },
+  
+  switchProject: async (projectId: number) => {
+    const { user, saveCurrentProject } = get();
+    if (!user) return;
+    
+    // Save current project before switching
+    await saveCurrentProject();
+    
+    set({ isProjectLoading: true });
+    try {
+      const response = await fetch(`http://localhost:8000/api/projects/${projectId}?user_email=${user.email}`);
+      if (response.ok) {
+        const project = await response.json();
+        
+        // Parse project data
+        const mediaBin = JSON.parse(project.media_bin || '[]');
+        const messages = JSON.parse(project.chat_history || '[]').map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+        
+        set({
+          currentProject: project,
+          mediaBin,
+          messages: messages.length > 0 ? messages : [{
+            id: 'init',
+            role: 'assistant',
+            content: "Welcome! Upload a video and let's start editing together.",
+            timestamp: new Date(),
+          }],
+          activeVideoId: null,
+          activeAudioId: null,
+          isProjectLoading: false
+        });
+      }
+    } catch (error) {
+      console.error('Failed to switch project:', error);
+      set({ isProjectLoading: false });
+    }
+  },
+  
+  saveCurrentProject: async () => {
+    const { currentProject, mediaBin, messages, user } = get();
+    if (!currentProject || !user) return;
+    
+    try {
+      // Serialize current state
+      const mediaBinJson = JSON.stringify(mediaBin);
+      const chatHistoryJson = JSON.stringify(messages);
+      
+      await fetch(`http://localhost:8000/api/projects/${currentProject.id}?user_email=${user.email}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          media_bin: mediaBinJson,
+          chat_history: chatHistoryJson
+        })
+      });
+    } catch (error) {
+      console.error('Failed to save project:', error);
+    }
+  },
+  
+  deleteProject: async (projectId: number) => {
+    const { user } = get();
+    if (!user) return;
+    
+    try {
+      const response = await fetch(`http://localhost:8000/api/projects/${projectId}?user_email=${user.email}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        set(state => ({
+          projects: state.projects.filter(p => p.id !== projectId),
+          currentProject: state.currentProject?.id === projectId ? null : state.currentProject
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to delete project:', error);
+    }
+  },
+  
+  // ==================== SAVED VIDEOS (GLOBAL) ====================
+  
+  saveVideo: async (videoUrl: string, filename: string, description?: string) => {
+    const { user } = get();
+    if (!user) {
+      console.error('No user logged in');
+      return;
+    }
+    
+    console.log('saveVideo called:', { videoUrl, filename, description, userEmail: user.email });
+    
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/saved-videos/`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename,
+            url: videoUrl,
+            description,
+            user_email: user.email
+          })
+        }
+      );
+      
+      console.log('saveVideo response status:', response.status);
+      
+      if (response.ok) {
+        const savedVideo = await response.json();
+        console.log('Video saved successfully:', savedVideo);
+        set(state => {
+          const newSavedVideos = [...state.savedVideos, savedVideo];
+          console.log('Updated savedVideos:', newSavedVideos);
+          return { savedVideos: newSavedVideos };
+        });
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to save video. Status:', response.status, 'Error:', errorText);
+        throw new Error(`Failed to save video: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('Failed to save video:', error);
+      throw error;
+    }
+  },
+  
+  loadSavedVideos: async () => {
+    const { user } = get();
+    if (!user) {
+      console.log('loadSavedVideos: No user logged in');
+      return;
+    }
+    
+    console.log('loadSavedVideos: Loading for user:', user.email);
+    
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/saved-videos/?user_email=${user.email}`
+      );
+      
+      console.log('loadSavedVideos response status:', response.status);
+      
+      if (response.ok) {
+        const savedVideos = await response.json();
+        console.log('loadSavedVideos: Loaded videos:', savedVideos);
+        set({ savedVideos });
+      } else {
+        const errorText = await response.text();
+        console.error('loadSavedVideos: Failed. Status:', response.status, 'Error:', errorText);
+      }
+    } catch (error) {
+      console.error('Failed to load saved videos:', error);
+    }
+  },
+  
+  deleteSavedVideo: async (videoId: number) => {
+    const { user } = get();
+    if (!user) return;
+    
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/saved-videos/${videoId}?user_email=${user.email}`,
+        { method: 'DELETE' }
+      );
+      
+      if (response.ok) {
+        set(state => ({
+          savedVideos: state.savedVideos.filter(v => v.id !== videoId)
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to delete saved video:', error);
+    }
+  },
 }));

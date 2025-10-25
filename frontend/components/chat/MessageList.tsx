@@ -11,20 +11,20 @@ import { useAppStore } from '@/lib/store';
 const MessageList = () => {
   const { currentVideoId, mediaFiles, messages, getMessagesByVideoId, addMessage } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+
   // Get current video name
   const currentVideo = mediaFiles.find(f => f.id === currentVideoId);
-  
+
   // Get messages for current video
   const videoMessages = currentVideoId ? getMessagesByVideoId(currentVideoId) : [];
 
   // Auto-inject AI description as a chat message if none exists yet for the current video
   useEffect(() => {
     if (!currentVideoId) return;
-    
+
     const hasAiDesc = videoMessages.some(m => m.id === `ai-desc-${currentVideoId}`);
     const video = mediaFiles.find(f => f.id === currentVideoId);
-    
+
     if (!hasAiDesc && video?.description) {
       addMessage({
         id: `ai-desc-${currentVideoId}`,
@@ -36,12 +36,12 @@ const MessageList = () => {
       });
     }
   }, [currentVideoId, mediaFiles, videoMessages, addMessage]);
-  
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [videoMessages]);
-  
+
   // Format timestamp
   const formatTime = (date: Date) => {
     const d = new Date(date);
@@ -51,7 +51,7 @@ const MessageList = () => {
       second: '2-digit'
     });
   };
-  
+
   return (
     <div className="flex-grow mb-4 p-4 bg-gray-900 rounded-lg flex flex-col overflow-hidden">
       {/* Header with current video info */}
@@ -67,19 +67,19 @@ const MessageList = () => {
           </div>
         )}
       </div>
-      
+
       {/* Messages container */}
       <div className="flex-grow overflow-y-auto space-y-3">
         {videoMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <p className="text-gray-400 text-sm font-medium mb-1">
-                {currentVideoId 
-                  ? 'No commands yet. Send your first editing command!' 
+                {currentVideoId
+                  ? 'No commands yet. Send your first editing command!'
                   : 'No video selected'}
               </p>
               <p className="text-gray-600 text-xs">
-                {currentVideoId 
+                {currentVideoId
                   ? 'Example: "Trim the first 10 seconds" or "Add fade out effect"'
                   : 'Upload or select a video from the Media panel'}
               </p>
@@ -107,18 +107,23 @@ const MessageList = () => {
                     <span className="flex-shrink-0 mt-0.5">🤖</span>
                   )}
                   <div className="flex-grow">
-                    <p className="break-words whitespace-pre-wrap prose prose-invert max-w-none text-sm">
-                      {/* Simple markdown rendering for bold and line breaks */}
-                      {message.content.split('\n').map((line, i) => (
-                        <div key={i}>
-                          {line.split(/(\*\*.*?\*\*)/g).map((part, j) => 
-                            part.startsWith('**') && part.endsWith('**') 
-                              ? <strong key={j}>{part.slice(2, -2)}</strong>
-                              : <span key={j}>{part}</span>
-                          )}
-                        </div>
+                    <div className="break-words whitespace-pre-wrap prose prose-invert max-w-none text-sm">
+                      {message.content.split('\n\n').map((paragraph, i) => (
+                        <p key={i} className="mb-2 last:mb-0">
+                          {paragraph.split('\n').map((line, j) => (
+                            <span key={j} className="block">
+                              {line.split(/(\*\*.*?\*\*)/g).map((part, k) =>
+                                part.startsWith('**') && part.endsWith('**') ? (
+                                  <strong key={k}>{part.slice(2, -2)}</strong>
+                                ) : (
+                                  part
+                                )
+                              )}
+                            </span>
+                          ))}
+                        </p>
                       ))}
-                    </p>
+                    </div>
                     <div className="flex items-center justify-between gap-2 mt-1 text-xs opacity-70">
                       <span>{formatTime(message.timestamp)}</span>
                       {message.status && (
@@ -142,7 +147,7 @@ const MessageList = () => {
         )}
         <div ref={messagesEndRef} />
       </div>
-      
+
       {/* Footer with message count */}
       {videoMessages.length > 0 && (
         <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500">

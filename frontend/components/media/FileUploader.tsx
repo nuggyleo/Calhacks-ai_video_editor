@@ -8,30 +8,30 @@ const FileUploader = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const { 
-    addMediaFile, 
-    setUploadProgress, 
-    setIsUploading, 
-    isUploading, 
+
+  const {
+    addMediaFile,
+    setUploadProgress,
+    setIsUploading,
+    isUploading,
     uploadProgress,
-    addMessage,
+    setCurrentVideo,
   } = useAppStore();
-  
+
   const handleUpload = async (file: File) => {
     if (!file.type.startsWith('video/')) {
       setError('Please upload a valid video file');
       return;
     }
-    
+
     setError(null);
     setIsUploading(true);
     setUploadProgress(0);
-    
+
     try {
       const formData = new FormData();
       formData.append('file', file);
-      
+
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
@@ -39,7 +39,7 @@ const FileUploader = () => {
 
       if (response.ok) {
         const data = await response.json();
-        
+
         // Add media file
         addMediaFile({
           id: data.file_id,
@@ -51,8 +51,8 @@ const FileUploader = () => {
           isAnalyzing: false,
         });
 
-        // The description message is now auto-injected by MessageList,
-        // so no need to call addMessage here.
+        // Explicitly set the new video as the current one to trigger the analysis message
+        setCurrentVideo(`http://localhost:8000${data.url}`, data.file_id);
 
         setUploadProgress(100);
         setTimeout(() => {
@@ -71,38 +71,38 @@ const FileUploader = () => {
       setIsUploading(false);
     }
   };
-  
+
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(true);
   };
-  
+
   const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
   };
-  
+
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-    
+
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       handleUpload(files[0]);
     }
   };
-  
+
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
       handleUpload(files[0]);
     }
   };
-  
+
   const handleClick = () => {
     fileInputRef.current?.click();
   };
-  
+
   return (
     <div className="space-y-3">
       <div
@@ -113,8 +113,8 @@ const FileUploader = () => {
         className={`
           border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
           transition-all duration-200
-          ${isDragging 
-            ? 'border-blue-500 bg-blue-500/10' 
+          ${isDragging
+            ? 'border-blue-500 bg-blue-500/10'
             : 'border-gray-600 hover:border-gray-500'
           }
           ${isUploading ? 'pointer-events-none opacity-50' : ''}
@@ -127,7 +127,7 @@ const FileUploader = () => {
           onChange={handleFileSelect}
           className="hidden"
         />
-        
+
         {isUploading ? (
           <div className="space-y-2">
             <p className="text-gray-300">Uploading...</p>
@@ -146,7 +146,7 @@ const FileUploader = () => {
           </div>
         )}
       </div>
-      
+
       {error && (
         <div className="bg-red-500/10 border border-red-500 rounded-lg p-3">
           <p className="text-red-400 text-sm">{error}</p>

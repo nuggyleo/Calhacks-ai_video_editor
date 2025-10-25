@@ -45,9 +45,8 @@ const FileUploader = () => {
         const thinkingMessageId = `thinking-${Date.now()}`;
         addMessage({
           id: thinkingMessageId,
-          videoId: data.file_id,
           role: 'assistant',
-          content: '正在理解视频内容...',
+          content: 'Analyzing video content...',
           timestamp: new Date(),
           status: 'pending',
         });
@@ -67,7 +66,7 @@ const FileUploader = () => {
 
           // Update the "thinking" message with the analysis result
           updateMessage(thinkingMessageId, {
-            content: `我理解完啦. 这是视频的基本信息: \n\n\`\`\`\n${data.description}\n\`\`\``,
+            content: `Video analysis complete! Here's what I found:\n\n\`\`\`\n${data.description}\n\`\`\``,
             status: 'completed',
             timestamp: new Date(),
           });

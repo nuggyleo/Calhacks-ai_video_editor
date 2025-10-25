@@ -64,37 +64,65 @@ const MessageList = () => {
   };
 
   return (
-    <div className="flex-grow mb-4 p-4 bg-gray-900 rounded-lg flex flex-col overflow-hidden">
+    <div className="flex-grow mb-4 p-6 bg-gray-900 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="mb-4 pb-3 border-b border-gray-700">
+      <div className="mb-6 pb-4 border-b border-gray-800">
         {activeVideoId ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-400">EDITING:</span>
-            <span className="text-sm font-medium text-blue-300">{activeVideo?.filename}</span>
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <span className="text-xs font-semibold text-gray-500 tracking-wider">EDITING</span>
+            <span className="text-sm font-medium text-white">{activeVideo?.filename}</span>
           </div>
         ) : (
-          <div className="text-xs text-yellow-400">⚠️ Select a video to start editing</div>
+          <div className="flex items-center gap-2 text-sm text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>Upload a video to start editing</span>
+          </div>
         )}
       </div>
 
       {/* Messages container */}
-      <div className="flex-grow overflow-y-auto space-y-4">
+      <div className="flex-grow overflow-y-auto space-y-6 pr-2">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <div className="text-center text-gray-500">
-              <p className="text-lg">
-                {activeVideoId ? 'Start by sending a command' : 'Select a video to begin'}
-              </p>
-              {activeVideoId && <p className="text-sm mt-2">e.g., "Trim the first 5 seconds"</p>}
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 mx-auto bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-full flex items-center justify-center border-2 border-gray-700">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-lg font-light text-gray-400">
+                  {activeVideoId ? 'Start a conversation' : 'Select a video to begin'}
+                </p>
+                {activeVideoId && (
+                  <p className="text-sm text-gray-600 mt-2">
+                    Try: "Trim the first 5 seconds"
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         ) : (
           messages.map((message) => (
-            <div key={message.id} className={`flex items-start gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div key={message.id} className={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {message.role === 'assistant' && (
-                <div className="w-8 h-8 flex-shrink-0 bg-gray-600 rounded-full flex items-center justify-center">🤖</div>
+                <div className="w-9 h-9 flex-shrink-0 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                    <path d="M12 8V4H8"/>
+                    <rect width="16" height="12" x="4" y="8" rx="2"/>
+                    <path d="M2 14h2"/>
+                    <path d="M20 14h2"/>
+                    <path d="M15 13v2"/>
+                    <path d="M9 13v2"/>
+                  </svg>
+                </div>
               )}
-              <div className={`max-w-md px-4 py-3 rounded-2xl ${message.role === 'user' ? 'bg-blue-600 text-white rounded-br-lg' : 'bg-gray-800 text-gray-200 rounded-bl-lg'}`}>
+              <div className={`max-w-md px-4 py-3 rounded-2xl backdrop-blur-sm ${message.role === 'user' ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg' : 'bg-gray-800/80 text-gray-100 border border-gray-700/50'}`}>
                 {/* Message Content, Video, Buttons etc. go here, structured cleanly */}
                 <div className="prose prose-invert prose-sm max-w-none break-words whitespace-pre-wrap">{message.content}</div>
                 {message.videoUrl && (
@@ -127,7 +155,12 @@ const MessageList = () => {
                 <div className="text-xs text-gray-400 mt-2 text-right">{formatTime(message.timestamp)}</div>
               </div>
               {message.role === 'user' && (
-                <div className="w-8 h-8 flex-shrink-0 bg-gray-600 rounded-full flex items-center justify-center">👤</div>
+                <div className="w-9 h-9 flex-shrink-0 bg-gradient-to-br from-gray-700 to-gray-600 rounded-full flex items-center justify-center border-2 border-gray-600 shadow-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                </div>
               )}
             </div>
           ))

@@ -263,6 +263,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         id: 'init',
         role: 'assistant',
         content: "Welcome! Upload a video and let's start editing together.",
+        timestamp: new Date(),
       },
     ]});
   },

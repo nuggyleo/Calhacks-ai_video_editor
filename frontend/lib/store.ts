@@ -57,6 +57,7 @@ interface AppState {
   updateMediaFileDescription: (id: string, description: string) => void;
   setPlaybackState: (updates: Partial<AppState['playbackState']>) => void;
   setActiveVideoVersion: (videoId: string, url: string) => void;
+  setIsThinking: (isThinking: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -66,6 +67,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   uploadProgress: 0,
   playbackState: { isPlaying: false, currentTime: 0 },
   messages: [],
+  isThinking: false,
 
   addMediaFile: (file) =>
     set((state) => {
@@ -240,4 +242,5 @@ export const useAppStore = create<AppState>((set, get) => ({
       playbackState: { isPlaying: false, currentTime: 0 },
     };
   }),
+  setIsThinking: (isThinking) => set({ isThinking }),
 }));

@@ -7,9 +7,13 @@ import CommandInput from "./CommandInput";
 
 const ChatPanel = () => {
   return (
-    <div className="col-span-2 bg-gray-800 flex flex-col p-4">
-      <MessageList />
-      <CommandInput />
+    <div className="h-full flex flex-col bg-gray-900">
+      <div className="flex-grow overflow-hidden">
+        <MessageList />
+      </div>
+      <div className="p-4 border-t border-gray-800">
+        <CommandInput />
+      </div>
     </div>
   );
 };

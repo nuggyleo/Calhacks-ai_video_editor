@@ -118,7 +118,7 @@ const VideoPlayer = () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDraggingProgressBar, duration, playbackState.isPlaying]);
+  }, [isDraggingProgressBar, duration, playbackState.isPlaying, setPlaybackState]);
 
   // Reset global state when video ends
   const handleEnded = () => {
@@ -152,8 +152,8 @@ const VideoPlayer = () => {
           url: `http://localhost:8000${result.url}`,
           type: file.type,
           uploadedAt: new Date(),
-          description: result.description || 'No description available.', // Add this
-          isAnalyzing: false, // Add this
+          description: result.description || 'No description available.', // Ensure this is present
+          isAnalyzing: false, // Ensure this is present
         });
 
         setTimeout(() => {

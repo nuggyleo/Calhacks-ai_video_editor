@@ -7,11 +7,8 @@ import React from 'react';
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   return (
-    <main className="bg-gray-900 text-white h-screen w-screen flex">
-      {/* We can define the grid columns here, e.g., 1fr 3fr 1.5fr */}
-      <div className="grid grid-cols-6 w-full h-full">
-        {children}
-      </div>
+    <main className="bg-black text-white h-screen w-screen flex">
+      {children}
     </main>
   );
 };

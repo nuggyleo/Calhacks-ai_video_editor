@@ -20,6 +20,7 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   status?: 'pending' | 'completed' | 'error';
+  videoUrl?: string; // Add optional video URL
 }
 
 interface AppState {

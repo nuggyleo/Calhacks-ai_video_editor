@@ -12,8 +12,9 @@ moviepy
 # AI / NLP
 openai
 langchain
+langchain-openai
 langgraph
-python-dotenv # To manage API keys
+# python-dotenv # To manage API keys
 
 # Background Tasks
 celery

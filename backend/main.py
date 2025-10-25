@@ -1,9 +1,20 @@
 
+import sys
+from pathlib import Path
+
+# --- Path Hotfix ---
+# This code adds the project's root directory to the Python path.
+# This ensures that modules can be imported using absolute paths (e.g., `from backend.graph...`)
+# regardless of where the application is run from.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+# --- End Path Hotfix ---
+
 # This is the main entry point for the FastAPI application.
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
 import uuid
 import tempfile
 import json
@@ -151,20 +162,14 @@ async def edit_video(request: EditCommandRequest):
     try:
         print(f"\n--- Processing edit command ---")
         print(f"Video ID: {request.video_id}")
-        print(f"Video URL: {request.video_url}")
         print(f"Command: {request.command}")
-        print(f"Video Description: {request.video_description}")
         
         # Import the graph
         from backend.graph.graph import app as graph
         
         # Find the video file path from the URL
-        # The URL is like "/uploads/uuid.mp4"
-        # We need to map it back to the actual file path
         from pathlib import Path
         import tempfile
-        
-        # Extract filename from URL
         filename = request.video_url.split("/")[-1]
         file_path = str(Path(tempfile.gettempdir()) / "calhacks_uploads" / filename)
         
@@ -172,33 +177,19 @@ async def edit_video(request: EditCommandRequest):
         result = graph.invoke({
             "query": request.command,
             "video_path": file_path,
-            "parsed_query": {},
-            "next_node": "",
-            "result": None,
-            "error": None,
         })
         
-        # Extract the result from the graph execution
+        # Get the chatbot's response from the result
         execution_result = result.get("result", {})
-        execution_error = result.get("error")
+        message = execution_result.get("message", "Sorry, I couldn't process that.")
         
-        if execution_error:
-            response = {
-                "status": "error",
-                "video_id": request.video_id,
-                "command": request.command,
-                "message": f"Error during video editing: {execution_error}",
-                "request_id": str(uuid.uuid4())
-            }
-        else:
-            response = {
-                "status": "completed",
-                "video_id": request.video_id,
-                "command": request.command,
-                "message": execution_result.get("message", "Video editing completed"),
-                "output_path": execution_result.get("output_path"),
-                "request_id": str(uuid.uuid4())
-            }
+        response = {
+            "status": "completed",
+            "video_id": request.video_id,
+            "command": request.command,
+            "message": message,
+            "request_id": str(uuid.uuid4())
+        }
         
         print(f"Response: {json.dumps(response, indent=2)}")
         return response

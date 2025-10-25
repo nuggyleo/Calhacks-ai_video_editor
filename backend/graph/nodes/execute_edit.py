@@ -9,6 +9,8 @@ from backend.video_engine.editing.effects import apply_filter, add_subtitle
 from backend.video_engine.editing.audio import set_audio
 from backend.video_engine.editing.export import export_video
 
+from moviepy.editor import VideoFileClip
+
 def execute_edit(state: GraphState):
     """
     Executes the video edit operations based on the parsed query.
@@ -37,7 +39,6 @@ def execute_edit(state: GraphState):
             edit_data = [edit_data]
         
         # Start with the original video
-        from moviepy.editor import VideoFileClip
         clip = VideoFileClip(video_path)
         
         # Process each edit action in sequence
@@ -48,7 +49,11 @@ def execute_edit(state: GraphState):
                 # Trim the video from start_time to end_time
                 start_time = action.get("start_time", 0)
                 end_time = action.get("end_time", clip.duration)
-                clip = split_video(video_path, start_time, end_time)
+                
+                # Make sure to get a full clip object
+                with VideoFileClip(video_path) as video:
+                    clip = video.subclip(start_time, end_time)
+                
                 print(f"✅ Trimmed video from {start_time}s to {end_time}s")
             
             elif action_type == "add_text":

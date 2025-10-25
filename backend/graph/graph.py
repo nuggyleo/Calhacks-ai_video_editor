@@ -9,50 +9,39 @@ from backend.graph.nodes.answer_question import answer_question
 from backend.graph.nodes.video_parser import video_parser
 from backend.graph.nodes.dispatch_tasks import dispatch_tasks
 from backend.graph.nodes.execute_edit import execute_edit
+from backend.graph.nodes.chatbot import chatbot
 
 def entry_point_router(state: GraphState):
     """
     Routes to the appropriate starting node based on the initial state.
     """
-    if "video_path" in state and state["video_path"]:
-        return "video_parser"
-    elif "query" in state and state["query"]:
-        return "query_parser"
-    else:
-        return END
+    return "chatbot"
 
 def query_router(state: GraphState):
     """
     Routes to the next node based on the 'next_node' attribute in the state.
     """
-    return state["next_node"]
+    if state["next_node"] == "continue_chat":
+        return "chatbot"
+    else:
+        return state["next_node"]
 
 # Define the graph
 workflow = StateGraph(GraphState)
 
 # Add the nodes
+workflow.add_node("chatbot", chatbot)
 workflow.add_node("query_parser", query_parser)
 workflow.add_node("answer_question", answer_question)
 workflow.add_node("video_parser", video_parser)
 workflow.add_node("dispatch_tasks", dispatch_tasks)
 workflow.add_node("execute_edit", execute_edit)
 
-
 # Set the entry point router
 workflow.set_entry_point("entry_point_router")
 
-# Add the conditional edge from the entry point
-workflow.add_conditional_edges(
-    "entry_point_router",
-    entry_point_router,
-    {
-        "video_parser": "video_parser",
-        "query_parser": "query_parser",
-    },
-)
-
-# Add edges from the parsers
-workflow.add_edge("video_parser", "answer_question")
+# Add the chatbot entry point
+workflow.add_edge("chatbot", "query_parser")
 
 # Add the conditional edge from the query parser
 workflow.add_conditional_edges(
@@ -61,12 +50,13 @@ workflow.add_conditional_edges(
     {
         "answer_question": "answer_question",
         "dispatch_tasks": "execute_edit",
+        "continue_chat": "chatbot",
     },
 )
 
-# Add edges from the other nodes to the end
-workflow.add_edge("answer_question", END)
-workflow.add_edge("execute_edit", END)
+# Add edges from the other nodes back to the chatbot
+workflow.add_edge("answer_question", "chatbot")
+workflow.add_edge("execute_edit", "chatbot")
 
 # Compile the graph
 app = workflow.compile()

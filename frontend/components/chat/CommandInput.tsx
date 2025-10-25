@@ -9,21 +9,72 @@ import { useAppStore } from '@/lib/store';
 
 const CommandInput = () => {
   const [input, setInput] = useState('');
-  const { currentVideoId, addMessage } = useAppStore();
+  const [isLoading, setIsLoading] = useState(false);
+  const { currentVideoId, currentVideoUrl, addMessage, updateMessage } = useAppStore();
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim() || !currentVideoId) return;
     
+    setIsLoading(true);
+    
+    // Add user message to the store
+    const userMessageId = `msg-${Date.now()}`;
     addMessage({
-      id: `msg-${Date.now()}`,
+      id: userMessageId,
       videoId: currentVideoId,
       role: 'user',
       content: input,
+      timestamp: new Date(),
+      status: 'completed',
+    });
+    
+    // Add a temporary "thinking..." message from the assistant
+    const assistantMessageId = `assistant-${Date.now()}`;
+    addMessage({
+      id: assistantMessageId,
+      videoId: currentVideoId,
+      role: 'assistant',
+      content: 'Thinking...',
       timestamp: new Date(),
       status: 'pending',
     });
     
     setInput('');
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          video_id: currentVideoId,
+          video_url: currentVideoUrl,
+          command: input.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      
+      const result = await response.json();
+      
+      // Update the assistant's message with the actual response
+      updateMessage(assistantMessageId, {
+        content: result.message || 'I received a response, but it was empty.',
+        status: 'completed',
+        timestamp: new Date(),
+      });
+      
+    } catch (error) {
+      console.error('Failed to send command:', error);
+      updateMessage(assistantMessageId, {
+        content: 'Sorry, I encountered an error. Please try again.',
+        status: 'error',
+        timestamp: new Date(),
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -33,17 +84,17 @@ const CommandInput = () => {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+          onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSend()}
           placeholder={currentVideoId ? 'Send editing command...' : 'Select a video first...'}
-          disabled={!currentVideoId}
+          disabled={!currentVideoId || isLoading}
           className="flex-grow bg-gray-700 text-white px-4 py-2 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <button
           onClick={handleSend}
-          disabled={!currentVideoId || !input.trim()}
+          disabled={!currentVideoId || !input.trim() || isLoading}
           className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2 rounded text-sm font-medium transition-colors disabled:cursor-not-allowed"
         >
-          Send
+          {isLoading ? '...' : 'Send'}
         </button>
       </div>
     </div>

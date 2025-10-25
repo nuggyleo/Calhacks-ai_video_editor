@@ -1,0 +1,37 @@
+# Node / Next.js
+node_modules
+.next
+npm-debug.log
+yarn-error.log
+.pnp
+.pnp.js
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Media Files
+# Add any video/audio extensions you expect users to upload
+*.mp4
+*.mov
+*.avi
+*.mp3
+*.wav
+*.m4a
+
+# OS-specific
+.DS_Store
+Thumbs.db

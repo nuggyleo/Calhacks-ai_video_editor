@@ -1,0 +1,19 @@
+# This file contains all the Python package dependencies for the backend.
+# You can install them all by running `pip install -r requirements.txt`.
+
+# Web Framework
+fastapi
+uvicorn[standard]
+
+# Video Processing
+ffmpeg-python
+
+# AI / NLP
+openai
+langchain
+langgraph
+# python-dotenv # To manage API keys
+
+# Background Tasks
+celery
+redis

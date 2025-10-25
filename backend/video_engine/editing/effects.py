@@ -19,6 +19,26 @@ def apply_filter(clip: VideoClip, filter_name: str, **kwargs) -> VideoClip:
     else:
         raise ValueError(f"Filter '{filter_name}' not found in moviepy.video.fx.all")
 
+def add_caption(
+    clip: VideoClip,
+    text: str,
+    start_time: float,
+    duration: float,
+    fontsize: int = 24,
+    color: str = "white",
+    position: tuple = ("center", "bottom"),
+) -> CompositeVideoClip:
+    """
+    Adds a caption to a video clip.
+    """
+    caption_clip = (
+        TextClip(text, fontsize=fontsize, color=color)
+        .set_position(position)
+        .set_start(start_time)
+        .set_duration(duration)
+    )
+    return CompositeVideoClip([clip, caption_clip])
+
 def add_subtitle(
     clip: VideoClip,
     text: str,

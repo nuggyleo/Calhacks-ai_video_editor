@@ -9,12 +9,12 @@ from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 
 from backend.graph.state import GraphState
-from backend.video_engine.tools import (
-    add_text_to_video,
-    apply_filter_to_video,
-    change_video_speed,
-    trim_video,
-)
+from backend.video_engine.editing.effects import apply_filter, add_subtitle, add_caption
+from backend.video_engine.editing.audio import set_audio
+from backend.video_engine.editing.export import export_video
+from backend.ai_services.filter_mapper import map_description_to_filter
+
+from moviepy.editor import VideoFileClip
 
 # 1. Define the tools for the agent
 tools = [

@@ -1,28 +1,29 @@
 import os
-import json
-from openai import OpenAI
-from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.pydantic_v1 import BaseModel, Field
 from typing import List, Literal, Union
+from dotenv import load_dotenv
 
 from backend.graph.state import GraphState
 
+# Load environment variables from .env file
 load_dotenv()
 
 class EditAction(BaseModel):
-    action: str = Field(..., description="The type of edit action to perform.")
+    action: str = Field(..., description="The type of edit action to perform. Supported actions: 'cut', 'trim', 'add_text', 'speed_up', 'slow_down', 'add_filter', 'set_audio'.")
     start_time: float = Field(None, description="Start time for the edit in seconds.")
     end_time: float = Field(None, description="End time for the edit in seconds.")
-    description: str = Field(None, description="Description of the edit.")
+    description: str = Field(None, description="Description of the edit (e.g., text content, filter name).")
 
 class Question(BaseModel):
     question: str = Field(..., description="The user's question about the video.")
 
 class ParsedQuery(BaseModel):
-    type: Literal["question", "edit"]
-    data: Union[Question, List[EditAction]]
+    """The parsed structure of the user's query."""
+    type: Literal["question", "edit"] = Field(..., description="Is the query a 'question' or an 'edit' request?")
+    data: Union[Question, List[EditAction]] = Field(..., description="The structured data from the query.")
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 def query_parser(state: GraphState):
     """

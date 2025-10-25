@@ -5,6 +5,11 @@
 from backend.graph.state import GraphState
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
 
 def answer_question(state: GraphState):
     """
@@ -50,6 +55,7 @@ def answer_question(state: GraphState):
     response = model.invoke([HumanMessage(content=prompt)])
     
     return {
+        **state,
         "result": {
             "status": "completed",
             "message": response.content

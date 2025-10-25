@@ -23,8 +23,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       {/* Top Navigation Bar */}
       <div className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-            AI Video Editor
+          <h1 className="font-lobster text-2xl bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            Cue
           </h1>
         </div>
         

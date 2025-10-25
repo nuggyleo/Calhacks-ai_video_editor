@@ -1,5 +1,12 @@
 
 # This is the main entry point for the FastAPI application.
+
+import sys
+import os
+
+# Add the project root directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -10,7 +17,8 @@ import json
 from pydantic import BaseModel
 import subprocess
 import base64
-import os
+
+from backend.graph.graph import app as graph_app
 
 app = FastAPI(
     title="Conversational Video Editor API",
@@ -155,28 +163,20 @@ async def edit_video(request: EditCommandRequest):
         print(f"Command: {request.command}")
         print(f"Video Description: {request.video_description}")
         
-        # Import the graph
-        from backend.graph.graph import app as graph
-        
         # Find the video file path from the URL
-        # The URL is like "/uploads/uuid.mp4"
-        # We need to map it back to the actual file path
-        from pathlib import Path
-        import tempfile
-        
-        # Extract filename from URL
         filename = request.video_url.split("/")[-1]
-        file_path = str(Path(tempfile.gettempdir()) / "calhacks_uploads" / filename)
+        video_path = str(UPLOAD_DIR / filename)
+
+        if not os.path.exists(video_path):
+            raise HTTPException(status_code=404, detail=f"Video file not found at path: {video_path}")
         
         # Run the graph with the user's command
-        result = graph.invoke({
+        initial_state = {
             "query": request.command,
-            "video_path": file_path,
-            "parsed_query": {},
-            "next_node": "",
-            "result": None,
-            "error": None,
-        })
+            "video_path": video_path,
+        }
+        
+        result = graph_app.invoke(initial_state)
         
         # Extract the result from the graph execution
         execution_result = result.get("result", {})

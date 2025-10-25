@@ -83,8 +83,16 @@ def execute_edit(state: GraphState):
                 clip = set_audio(clip, audio_path)
                 print(f"✅ Set audio to: {audio_path}")
         
+        # Define the output directory relative to the project root
+        # Assumes this script is in backend/graph/nodes
+        output_dir = Path(__file__).parent.parent.parent.parent / "outputs"
+        output_dir.mkdir(exist_ok=True, parents=True)
+
+        # Create a unique output path
+        original_filename = Path(video_path).name
+        output_path = str(output_dir / f"edited_{original_filename}")
+        
         # Export the final edited video
-        output_path = str(Path(video_path).parent / f"edited_{Path(video_path).name}")
         export_video(clip, output_path)
         
         return {

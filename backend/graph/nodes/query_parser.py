@@ -82,7 +82,7 @@ def query_parser(state: GraphState):
     if parsed_query.type == "question":
         state["next_node"] = "answer_question"
     else:
-        state["next_node"] = "dispatch_tasks"
+        state["next_node"] = "execute_edit"
     
     state["parsed_query"] = parsed_query.model_dump()
 

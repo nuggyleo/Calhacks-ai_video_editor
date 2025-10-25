@@ -27,36 +27,19 @@ class ParsedQuery(BaseModel):
 
 def query_parser(state: GraphState):
     """
-    Parses the user's query to determine if it's a question or an edit request
-    using a structured output model.
+    This node is now a pass-through. The main routing logic is handled by the
+    pre_analysis_router and the chatbot's tool_choice. This node remains
+    to maintain the graph structure but performs no complex operations.
+    It primarily prepares the state for the answer_question node.
     """
-    query = state["query"]
-    print(f"---PARSING QUERY: '{query}'---")
-
-    # Initialize the model
-    model = ChatOpenAI(model="gpt-4o", temperature=0, api_key=os.environ.get("OPENAI_API_KEY"))
+    # The 'parsed_query' from the chatbot is already in the correct format.
+    # We just ensure the state is passed along correctly.
+    print("--- PASSING THROUGH QUERY PARSER ---")
     
-    # Create a structured output model
-    structured_llm = model.with_structured_output(ParsedQuery)
-
-    system_prompt = """You are an intelligent video editing assistant. Your task is to parse the user's query and determine if it is a question about the video or a request to edit the video. Extract the information into the structured format required."""
-
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        ("human", "{query}")
-    ])
+    # The primary purpose is now to set 'next_node' for the final step,
+    # as the main routing happens before this. We can infer the next step
+    # from the structure of parsed_query.
+    if "question" in state.get("parsed_query", {}).get("data", {}):
+         state["next_node"] = "answer_question"
     
-    # Create the chain and invoke it
-    chain = prompt | structured_llm
-    parsed_query = chain.invoke({"query": query})
-
-    if parsed_query.type == "question":
-        print("Query classified as a question.")
-        state["next_node"] = "answer_question"
-    else:
-        print(f"Query classified as an edit. Actions: {[action.action for action in parsed_query.data]}")
-        state["next_node"] = "execute_edit"
-    
-    state["parsed_query"] = parsed_query.dict()
-
     return state

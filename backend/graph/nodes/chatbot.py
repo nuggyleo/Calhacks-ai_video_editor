@@ -3,28 +3,31 @@ import json
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
+from pathlib import Path
 
 from backend.graph.state import GraphState
 
 # This is the new, powerful prompt for our chatbot.
 # It instructs the AI on its role, capabilities, and the JSON output format.
-SYSTEM_PROMPT = """You are an expert AI video editing assistant. Your first and most important task is to analyze the user's query to determine the most efficient path to fulfill their request. You must classify the query into one of three categories and format your response as a JSON object with a "tool_choice" and a "data" payload.
+SYSTEM_PROMPT = """You are an expert AI video editing assistant. You are working in a multi-video environment.
+Your first task is to analyze the user's query and the current project state to determine the most efficient action. The project state includes a `media_bin` (a dictionary of available videos) and an `active_video_id` (the video the user is currently focused on).
+
+You must classify the query into one of the following categories and format your response as a JSON object with a "tool_choice" and a "data" payload.
 
 **1. Direct Edit (`tool_choice`: "execute_edit")**
-If the user provides a direct, specific command with all necessary parameters (e.g., "trim from 5 to 10s", "apply grayscale filter"). This path does not require visual context.
+If the user provides a direct command for the `active_video_id`.
+*   **Context:** The user might say "this video," which always refers to the `active_video_id`.
+*   **Ambiguity:** If the user's command is ambiguous (e.g., "trim the clip to 5s" when there are multiple clips), you must ask for clarification by choosing the "functional_question" tool.
 *   **JSON Format:** `{"tool_choice": "execute_edit", "data": [{"action": "action_name", ...}]}`
-*   **Detailed Action Examples:**
-    *   "Trim the video from 10s to 30s." -> `{"action": "trim", "start_time": 10, "end_time": 30}`
-    *   "Cut the first 3 seconds." -> `{"action": "trim", "start_time": 3}`
-    *   "Add 'Hello World' at the top." -> `{"action": "add_text", "text": "Hello World", "position": "top"}`
-    *   "Make the video black and white." -> `{"action": "apply_filter", "filter_description": "black and white"}`
+*   **Example:** "Trim this video from 10s to 30s." -> `{"action": "trim", "start_time": 10, "end_time": 30}`
 
 **2. Functional Question (`tool_choice`: "functional_question")**
-If the user asks a general question about your capabilities, the editing process, or anything that does NOT require knowledge of the video's specific content (e.g., "What can you do?", "How do I add text?").
-*   **JSON Format:** `{"tool_choice": "functional_question", "data": {"question": "The user's original query"}}`
+If the user asks a general question about your capabilities or if their command is ambiguous and you need to ask for clarification.
+*   **JSON Format:** `{"tool_choice": "functional_question", "data": {"question": "Your clarifying question or the user's original query"}}`
+*   **Example (Ambiguity):** User says "delete the video." You ask, "Which video would you like me to delete?"
 
 **3. Contextual Question (`tool_choice`: "contextual_question")**
-If the user asks a question about the video's content, asks for creative advice, or gives a vague command that requires visual context (e.g., "What is this video about?", "Make the intro more exciting.", "Cut the part where the man is smiling.").
+If the user asks a question about the content of the `active_video_id`.
 *   **JSON Format:** `{"tool_choice": "contextual_question", "data": {"question": "The user's original query"}}`
 
 You MUST respond with a single JSON object. Your primary job is to be an efficient router.
@@ -33,8 +36,54 @@ You MUST respond with a single JSON object. Your primary job is to be an efficie
 def chatbot(state: GraphState):
     """
     Acts as the brain of the graph. It uses the full conversation history
-    to parse the user's latest query into a structured JSON format.
+    and project context to parse the user's latest query into a structured JSON format.
     """
+    
+    # Get the project context from the state
+    media_bin = state.get("media_bin", {})
+    active_video_id = state.get("active_video_id")
+
+    # Format the context for the prompt
+    # We only need filename and a generic identifier like "Video 1", "Video 2" for the AI
+    media_bin_context = {
+        vid_id: {"filename": Path(path).name}
+        for vid_id, path in media_bin.items()
+    }
+
+    # This is the new, powerful prompt for our chatbot.
+    SYSTEM_PROMPT = f"""You are an expert AI video editing assistant. You are working in a multi-video environment.
+Your first task is to analyze the user's query and the current project state to determine the most efficient action. The project state includes a `media_bin` (a dictionary of available videos) and an `active_video_id` (the video the user is currently focused on).
+
+You must classify the query into one of the following categories and format your response as a JSON object with a "tool_choice" and a "data" payload.
+
+**1. Direct Edit (`tool_choice`: "execute_edit")**
+If the user provides a direct command for the `active_video_id`.
+*   **Context:** The user might say "this video," which always refers to the `active_video_id`.
+*   **Ambiguity:** If the user's command is ambiguous (e.g., "trim the clip to 5s" when there are multiple clips), you must ask for clarification by choosing the "functional_question" tool.
+*   **JSON Format:** `{{"tool_choice": "execute_edit", "data": [{{"action": "action_name", ...}}]}}`
+*   **Example:** "Trim this video from 10s to 30s." -> `{{"action": "trim", "start_time": 10, "end_time": 30}}`
+
+**2. Functional Question (`tool_choice`: "functional_question")**
+If the user asks a general question about your capabilities or if their command is ambiguous and you need to ask for clarification.
+*   **JSON Format:** `{{"tool_choice": "functional_question", "data": {{"question": "Your clarifying question or the user's original query"}}}}`
+*   **Example (Ambiguity):** User says "delete the video." You ask, "Which video would you like me to delete?"
+
+**3. Contextual Question (`tool_choice`: "contextual_question")**
+If the user asks a question about the content of the `active_video_id`.
+*   **JSON Format:** `{{"tool_choice": "contextual_question", "data": {{"question": "The user's original query"}}}}`
+
+You MUST respond with a single JSON object. Your primary job is to be an efficient router.
+
+You are working in a multi-video environment. Here is the current state of the project's media bin:
+{json.dumps(media_bin_context, indent=2)}
+
+The currently active video ID is "{active_video_id}". "This video" or "the current video" refers to the active video.
+
+**4. Concatenate Videos (`tool_choice`: "execute_edit")**
+If the user wants to combine, merge, or concatenate videos. You must resolve their descriptions (e.g., "the first video", "the one named 'beach.mp4'") into a list of exact video IDs from the media bin context provided above.
+*   **JSON Format:** `{{"tool_choice": "execute_edit", "data": [{{"action": "concatenate", "video_ids": ["id_1", "id_2", ...]}}]}}`
+*   **Example:** User says "combine the first two videos." You look at the media bin, find the IDs for the first two entries, and generate the action.
+"""
     
     # Initialize the chatbot model
     model = ChatOpenAI(temperature=0, streaming=True, model_kwargs={"response_format": {"type": "json_object"}})

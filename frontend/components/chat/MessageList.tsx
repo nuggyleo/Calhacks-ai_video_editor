@@ -9,38 +9,43 @@ import { useEffect, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 
 const MessageList = () => {
-  const { currentVideoId, mediaFiles, messages, getMessagesByVideoId, addMessage, revertToPreviousVersion, redoLastAction } = useAppStore();
+  const {
+    activeVideoId, mediaBin, messages, addMessage,
+    revertToPreviousVersion, redoLastAction,
+    setActiveVideoVersion, setPlaybackState // <-- NEW: Get playback actions
+  } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Get current video name
-  const currentVideo = mediaFiles.find(f => f.id === currentVideoId);
+  // Get current video name for the header display
+  const activeVideo = mediaBin.find(f => f.id === activeVideoId);
 
-  // Get messages for current video
-  const videoMessages = currentVideoId ? getMessagesByVideoId(currentVideoId) : [];
+  // The videoMessages are now just the global messages array
+  const videoMessages = messages;
 
-  // Auto-inject AI description as a chat message if none exists yet for the current video
+  // This effect will now only run when the active video changes.
   useEffect(() => {
-    if (!currentVideoId) return;
+    if (!activeVideoId) return;
 
-    const hasAiDesc = videoMessages.some(m => m.id === `ai-desc-${currentVideoId}`);
-    const video = mediaFiles.find(f => f.id === currentVideoId);
+    // Check if an analysis for THIS video has ever been added to the global chat
+    const hasAiDesc = messages.some(m => m.id === `ai-desc-${activeVideoId}`);
+    const video = mediaBin.find(f => f.id === activeVideoId);
 
     if (!hasAiDesc && video?.description) {
       addMessage({
-        id: `ai-desc-${currentVideoId}`,
-        videoId: currentVideoId,
+        // The store will now generate the ID, but we can suggest one for analysis messages
+        id: `ai-desc-${activeVideoId}`,
         role: 'assistant',
-        content: `**Video Analysis:**\n\n${video.description}`,
+        content: `**Video Analysis for ${video.filename}:**\n\n${video.description}`,
         timestamp: new Date(),
         status: 'completed',
       });
     }
-  }, [currentVideoId, mediaFiles, videoMessages, addMessage]);
+  }, [activeVideoId, mediaBin]); // <-- REMOVED `messages` and `addMessage` from dependencies
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [videoMessages]);
+  }, [messages]); // Depends on the global messages array now
 
   // Format timestamp
   const formatTime = (date: Date) => {
@@ -55,14 +60,40 @@ const MessageList = () => {
   // Find the ID of the last message that has a video URL
   const lastVideoMessageId = videoMessages.slice().reverse().find(m => m.videoUrl)?.id;
 
+  // --- NEW: Handlers to control the main player from chat videos ---
+
+  const handlePreviewPlay = (e: React.SyntheticEvent<HTMLVideoElement>, messageUrl: string) => {
+    e.preventDefault();
+    if (activeVideo?.url !== messageUrl) {
+      // If the user plays a different version, load it into the main player first
+      setActiveVideoVersion(activeVideoId!, messageUrl);
+    }
+    setPlaybackState({ isPlaying: true });
+  };
+
+  const handlePreviewPause = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    e.preventDefault();
+    setPlaybackState({ isPlaying: false });
+  };
+
+  const handlePreviewSeek = (e: React.SyntheticEvent<HTMLVideoElement>, messageUrl: string) => {
+    e.preventDefault();
+    const newTime = e.currentTarget.currentTime;
+    if (activeVideo?.url !== messageUrl) {
+      // If they seek on a different version, load it and then seek
+      setActiveVideoVersion(activeVideoId!, messageUrl);
+    }
+    setPlaybackState({ currentTime: newTime });
+  };
+
   return (
     <div className="flex-grow mb-4 p-4 bg-gray-900 rounded-lg flex flex-col overflow-hidden">
       {/* Header with current video info */}
       <div className="mb-4 pb-3 border-b border-gray-700">
-        {currentVideoId ? (
+        {activeVideoId ? (
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-gray-400">EDITING:</span>
-            <span className="text-sm font-medium text-blue-300">{currentVideo?.filename}</span>
+            <span className="text-sm font-medium text-blue-300">{activeVideo?.filename}</span>
           </div>
         ) : (
           <div className="text-xs text-yellow-400">
@@ -77,12 +108,12 @@ const MessageList = () => {
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <p className="text-gray-400 text-sm font-medium mb-1">
-                {currentVideoId
+                {activeVideoId
                   ? 'No commands yet. Send your first editing command!'
                   : 'No video selected'}
               </p>
               <p className="text-gray-600 text-xs">
-                {currentVideoId
+                {activeVideoId
                   ? 'Example: "Trim the first 10 seconds" or "Add fade out effect"'
                   : 'Upload or select a video from the Media panel'}
               </p>
@@ -134,12 +165,15 @@ const MessageList = () => {
                         <video
                           src={message.videoUrl}
                           controls
+                          onPlay={(e) => handlePreviewPlay(e, message.videoUrl!)}
+                          onPause={handlePreviewPause}
+                          onSeeked={(e) => handlePreviewSeek(e, message.videoUrl!)}
                           className="w-full"
                         />
                         {/* Show Revert button only on the last video message */}
-                        {message.id === lastVideoMessageId && (currentVideo?.versionHistory?.length ?? 0) > 1 && (
+                        {message.id === lastVideoMessageId && (activeVideo?.versionHistory?.length ?? 0) > 1 && (
                           <button
-                            onClick={() => currentVideoId && revertToPreviousVersion(currentVideoId)}
+                            onClick={() => activeVideoId && revertToPreviousVersion(activeVideoId)}
                             className="absolute top-2 right-2 bg-black/50 text-white px-3 py-1 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
                           >
                             ↩️ Revert
@@ -147,12 +181,12 @@ const MessageList = () => {
                         )}
                       </div>
                     )}
-                    
+
                     {/* Display Redo button on revert messages */}
-                    {message.content.includes('reverted to the previous version') && (currentVideo?.redoHistory?.length ?? 0) > 0 && (
+                    {message.content.includes('reverted to the previous version') && (activeVideo?.redoHistory?.length ?? 0) > 0 && (
                       <div className="mt-2">
                         <button
-                          onClick={() => currentVideoId && redoLastAction(currentVideoId)}
+                          onClick={() => activeVideoId && redoLastAction(activeVideoId)}
                           className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 text-xs rounded transition-colors"
                         >
                           ↪️ Redo

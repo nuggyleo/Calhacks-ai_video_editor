@@ -1,11 +1,22 @@
+import logging
 from langchain_core.tools import tool
-from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
-from moviepy.video.fx import all as vfx
-from typing import Optional
+from moviepy.editor import (
+    VideoFileClip,
+    TextClip,
+    CompositeVideoClip,
+    concatenate_videoclips,
+    ColorClip,
+)
+import moviepy.video.fx.all as vfx
+from typing import Optional, Dict, List
 from pathlib import Path
 import uuid
 import json
 from backend.ai_services.filter_mapper import map_description_to_filter
+
+# Configure logging for this module
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Define the output directory relative to this file's location
 # tools.py -> video_engine -> backend -> [project_root]
@@ -21,52 +32,62 @@ def get_output_path(input_path: str, suffix: str) -> str:
     return str(OUTPUT_DIR / new_filename)
 
 
+def resolve_video_path(active_video_id: str, media_bin: Dict[str, str]) -> str:
+    """Looks up the video path from the media bin."""
+    if active_video_id not in media_bin:
+        raise ValueError(f"Video ID '{active_video_id}' not found in the media bin.")
+    return media_bin[active_video_id]
+
 @tool
-def trim_video(video_path: str, start_time: float, end_time: Optional[float] = None) -> str:
+def trim_video(active_video_id: str, media_bin: Dict[str, str], start_time: float, end_time: Optional[float] = None) -> str:
     """
     Trims a video to a specified start and end time.
-    :param video_path: str, the file path of the input video.
-    :param start_time: float, the start time in seconds for the trim.
-    :param end_time: Optional[float], the end time in seconds for the trim. If not provided, it trims to the end of the video.
-    :return: str, the file path of the trimmed video.
     """
+    logger.info(f"--- TOOL: trim_video starting ---")
+    video_path = resolve_video_path(active_video_id, media_bin)
+    logger.info(f"Resolved video path: {video_path}")
+    
     with VideoFileClip(video_path) as clip:
         if end_time is None:
             end_time = clip.duration
         subclip = clip.subclip(start_time, end_time)
         output_path = get_output_path(video_path, "trimmed")
-        subclip.write_videofile(output_path, codec="libx264")
+        
+        logger.info(f"Writing trimmed video to: {output_path}")
+        subclip.write_videofile(output_path, codec="libx264", logger='bar')
+        
+    logger.info(f"--- TOOL: trim_video finished ---")
     return output_path
 
 @tool
-def add_text_to_video(video_path: str, text: str, start_time: float, duration: float, position: str = "center", fontsize: int = 70, color: str = 'white') -> str:
+def add_text_to_video(active_video_id: str, media_bin: Dict[str, str], text: str, start_time: float, duration: float, position: str = "center", fontsize: int = 70, color: str = 'white') -> str:
     """
     Adds a text overlay to a video at a specific time.
-    :param video_path: str, the file path of the input video.
-    :param text: str, the text content to add.
-    :param start_time: float, the time in seconds when the text should appear.
-    :param duration: float, how long the text should stay on screen in seconds.
-    :param position: str, the position of the text (e.g., 'center', 'top', 'bottom').
-    :param fontsize: int, the font size of the text.
-    :param color: str, the color of the text.
-    :return: str, the file path of the video with the text overlay.
     """
+    logger.info(f"--- TOOL: add_text_to_video starting ---")
+    video_path = resolve_video_path(active_video_id, media_bin)
+    logger.info(f"Resolved video path: {video_path}")
+    
     with VideoFileClip(video_path) as clip:
         text_clip = TextClip(text, fontsize=fontsize, color=color).set_position(position).set_start(start_time).set_duration(duration)
         final_clip = CompositeVideoClip([clip, text_clip])
         output_path = get_output_path(video_path, "text_added")
-        final_clip.write_videofile(output_path, codec="libx264")
+
+        logger.info(f"Writing video with text to: {output_path}")
+        final_clip.write_videofile(output_path, codec="libx264", logger='bar')
+        
+    logger.info(f"--- TOOL: add_text_to_video finished ---")
     return output_path
 
 @tool
-def apply_filter_to_video(video_path: str, filter_description: str) -> str:
+def apply_filter_to_video(active_video_id: str, media_bin: Dict[str, str], filter_description: str) -> str:
     """
     Applies a visual filter to the entire video based on a natural language description.
-    For example, 'make the video black and white' or 'darken the video by 10%'.
-    :param video_path: str, the file path of the input video.
-    :param filter_description: str, a natural language description of the filter to apply.
-    :return: str, the file path of the filtered video.
     """
+    logger.info(f"--- TOOL: apply_filter_to_video starting ---")
+    video_path = resolve_video_path(active_video_id, media_bin)
+    logger.info(f"Resolved video path: {video_path}")
+    
     filter_info = map_description_to_filter(filter_description)
     filter_name = filter_info.get("filter_name")
     parameters = filter_info.get("parameters", {})
@@ -79,19 +100,94 @@ def apply_filter_to_video(video_path: str, filter_description: str) -> str:
         final_clip = clip.fx(filter_func, **parameters)
         
         output_path = get_output_path(video_path, filter_name)
-        final_clip.write_videofile(output_path, codec="libx264")
+        logger.info(f"Writing filtered video to: {output_path}")
+        final_clip.write_videofile(output_path, codec="libx264", logger='bar')
+        
+    logger.info(f"--- TOOL: apply_filter_to_video finished ---")
     return output_path
 
 @tool
-def change_video_speed(video_path: str, speed_factor: float) -> str:
+def change_video_speed(active_video_id: str, media_bin: Dict[str, str], speed_factor: float) -> str:
     """
     Changes the speed of the video.
-    :param video_path: str, the file path of the input video.
-    :param speed_factor: float, the factor by which to change the speed. >1 for speed up, <1 for slow down.
-    :return: str, the file path of the speed-adjusted video.
     """
+    logger.info(f"--- TOOL: change_video_speed starting ---")
+    video_path = resolve_video_path(active_video_id, media_bin)
+    logger.info(f"Resolved video path: {video_path}")
+    
     with VideoFileClip(video_path) as clip:
         final_clip = clip.speedx(speed_factor)
         output_path = get_output_path(video_path, f"speed_{speed_factor}x")
-        final_clip.write_videofile(output_path, codec="libx264")
+        
+        logger.info(f"Writing speed-adjusted video to: {output_path}")
+        final_clip.write_videofile(output_path, codec="libx264", logger='bar')
+        
+    logger.info(f"--- TOOL: change_video_speed finished ---")
+    return output_path
+
+@tool
+def concatenate_videos(video_ids: List[str], media_bin: Dict[str, str]) -> str:
+    """
+    Concatenates multiple videos together in the specified order.
+    :param video_ids: list[str], a list of the video IDs to concatenate.
+    :param media_bin: Dict[str, str], the media bin containing the video paths.
+    :return: str, the file path of the new concatenated video.
+    """
+    logger.info(f"--- TOOL: concatenate_videos starting ---")
+    logger.info(f"Received video IDs for concatenation: {video_ids}")
+
+    video_paths = [media_bin.get(vid_id) for vid_id in video_ids]
+    if not all(video_paths):
+        missing_ids = [vid_id for vid_id, path in zip(video_ids, video_paths) if not path]
+        raise ValueError(f"Could not find video paths for the following IDs: {missing_ids}")
+
+    logger.info(f"Resolved video paths: {video_paths}")
+
+    try:
+        # Load clips into moviepy objects
+        moviepy_clips = [VideoFileClip(path) for path in video_paths]
+
+        # --- NEW: Intelligent resizing with padding to preserve quality ---
+        # 1. Find the maximum resolution among all clips
+        max_width = max(clip.w for clip in moviepy_clips)
+        max_height = max(clip.h for clip in moviepy_clips)
+        target_size = (max_width, max_height)
+        logger.info(f"Standardizing all clips to max resolution: {target_size} by padding smaller clips.")
+
+        # 2. Add padding to smaller clips to match the max resolution
+        processed_clips = []
+        for clip in moviepy_clips:
+            if clip.size != target_size:
+                # Create a black background clip of the target size
+                background = ColorClip(size=target_size, color=(0,0,0), duration=clip.duration)
+                # Place the original clip in the center of the background
+                padded_clip = CompositeVideoClip([background, clip.set_position('center')])
+                processed_clips.append(padded_clip)
+            else:
+                processed_clips.append(clip)
+
+        # 3. Trim end frames to prevent glitches (still a good practice)
+        final_clips = [clip.subclip(0, clip.duration - 0.05) for clip in processed_clips]
+        # --- End of new logic ---
+
+        output_path = get_output_path(video_paths[0], "concatenated")
+
+        logger.info(f"Writing concatenated video to: {output_path}")
+        final_clip = concatenate_videoclips(final_clips, method="compose")
+        final_clip.write_videofile(output_path, codec="libx264", logger='bar')
+        
+        # Clean up all original video file clips
+        for clip in moviepy_clips:
+            clip.close()
+        final_clip.close()
+
+    except Exception as e:
+        logger.error(f"Error during video concatenation: {e}")
+        # Clean up any clips that were opened
+        for clip in moviepy_clips:
+            if clip:
+                clip.close()
+        raise e
+
+    logger.info(f"--- TOOL: concatenate_videos finished ---")
     return output_path

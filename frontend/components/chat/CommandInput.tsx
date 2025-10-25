@@ -10,17 +10,17 @@ import { useAppStore } from '@/lib/store';
 const CommandInput = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { currentVideoId, currentVideoUrl, mediaFiles, addMessage, updateMessage, setCurrentVideoUrl } = useAppStore();
+  const { activeVideoId, mediaBin, messages, addMessage, updateMessage, handleSuccessfulEdit } = useAppStore();
 
   const handleSend = async () => {
-    if (!input.trim() || !currentVideoId || !currentVideoUrl) return;
+    if (!input.trim() || !activeVideoId) return;
 
     setIsLoading(true);
 
-    const userMessageId = `msg-${Date.now()}`;
+    // Add user message to the single global thread
+    const userMessageId = `msg-user-${Date.now()}`;
     addMessage({
       id: userMessageId,
-      videoId: currentVideoId,
       role: 'user',
       content: input,
       timestamp: new Date(),
@@ -30,7 +30,6 @@ const CommandInput = () => {
     const assistantMessageId = `assistant-${Date.now()}`;
     addMessage({
       id: assistantMessageId,
-      videoId: currentVideoId,
       role: 'assistant',
       content: '🧠 Processing...',
       timestamp: new Date(),
@@ -40,39 +39,50 @@ const CommandInput = () => {
     setInput('');
 
     try {
-      const video = mediaFiles.find(f => f.id === currentVideoId);
-      
+      // Create a simple dictionary for the backend from the mediaBin
+      const mediaBinForApi = mediaBin.reduce((acc, file) => {
+        acc[file.id] = file.url; // Or file path if that's what backend expects
+        return acc;
+      }, {} as Record<string, string>);
+
+      // --- NEW: Prepare the full chat history for the backend ---
+      const chatHistoryForApi = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
       const response = await fetch('http://localhost:8000/api/edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          video_id: currentVideoId,
-          video_url: currentVideoUrl,
+          active_video_id: activeVideoId,
+          media_bin: mediaBinForApi,
           command: input.trim(),
-          video_description: video?.description || '',
+          chat_history: chatHistoryForApi, // <-- SEND FULL HISTORY
         }),
       });
 
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
-      
-      const result = await response.json();
-      
-      // If the backend sent back a new video URL, update the player and the message
-      const fullUrl = result.output_url ? `http://localhost:8000${result.output_url}` : undefined;
 
-      updateMessage(assistantMessageId, {
-        content: result.message || 'I received a response, but it was empty.',
-        status: 'completed',
-        timestamp: new Date(),
-        videoUrl: fullUrl, // Attach the new video URL to the message
-      });
-      
-      if (fullUrl && currentVideoId) {
-        setCurrentVideoUrl(fullUrl, currentVideoId);
+      const result = await response.json();
+
+      const fullUrl = result.output_url ? `http://localhost:8000${result.output_url}` : undefined;
+      const messageContent = result.message || 'I received a response, but it was empty.';
+
+      // --- NEW: Use the single atomic action to sync state ---
+      if (fullUrl && activeVideoId) {
+        handleSuccessfulEdit(activeVideoId, fullUrl, assistantMessageId, messageContent);
+      } else {
+        // If there's no new video, just update the message text.
+        updateMessage(assistantMessageId, {
+          content: messageContent,
+          status: 'completed',
+          timestamp: new Date(),
+        });
       }
-      
+
     } catch (error) {
       console.error('Failed to send command:', error);
       updateMessage(assistantMessageId, {
@@ -93,13 +103,13 @@ const CommandInput = () => {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSend()}
-          placeholder={currentVideoId ? 'Send editing command...' : 'Select a video first...'}
-          disabled={!currentVideoId || isLoading}
+          placeholder={activeVideoId ? 'Send editing command...' : 'Select a video first...'}
+          disabled={!activeVideoId || isLoading}
           className="flex-grow bg-gray-700 text-white px-4 py-2 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <button
           onClick={handleSend}
-          disabled={!currentVideoId || !input.trim() || isLoading}
+          disabled={!activeVideoId || !input.trim() || isLoading}
           className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2 rounded text-sm font-medium transition-colors disabled:cursor-not-allowed"
         >
           {isLoading ? '...' : 'Send'}

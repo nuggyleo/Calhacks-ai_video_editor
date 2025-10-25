@@ -1,117 +1,134 @@
 import os
+import logging
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Optional
 
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
+from langchain_core.tools import tool
 
 from backend.graph.state import GraphState
-from backend.video_engine.editing.effects import apply_filter, add_subtitle, add_caption
-from backend.video_engine.editing.audio import set_audio
-from backend.video_engine.editing.export import export_video
-from backend.ai_services.filter_mapper import map_description_to_filter
-from backend.video_engine.tools import trim_video, add_text_to_video, apply_filter_to_video, change_video_speed
-from moviepy.editor import VideoFileClip
+# Import the original tools so we can wrap them
+from backend.video_engine import tools as video_tools
 
-# 1. Define the tools for the agent
-tools = [
-    TavilySearchResults(max_results=3),
-    trim_video,
-    add_text_to_video,
-    apply_filter_to_video,
-    change_video_speed,
-]
-tool_node = ToolNode(tools)
+# Configure logging for this module
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# 2. Define the agent model
-model = ChatOpenAI(temperature=0, streaming=True).bind_tools(tools)
-
-
-# 3. Define the nodes for the agent's internal graph
-def agent_node(state: GraphState):
-    """The agent's "brain" - decides what action to take."""
-    print("---AGENT: Deciding next action---")
-    response = model.invoke(state["messages"])
-    return {"messages": [response]}
-
-def should_continue_router(state: GraphState):
-    """Router to decide if the agent should continue or is finished."""
-    if state["messages"][-1].tool_calls:
-        return "tool_node"
-    else:
-        return END
-
-# 4. Wire up the agent's internal graph
-agent_workflow = StateGraph(GraphState)
-agent_workflow.add_node("agent", agent_node)
-agent_workflow.add_node("tool_node", tool_node) # Using the official ToolNode
-agent_workflow.set_entry_point("agent")
-agent_workflow.add_conditional_edges(
-    "agent",
-    should_continue_router,
-)
-agent_workflow.add_edge("tool_node", "agent")
-agent_app = agent_workflow.compile()
-
-
-# 5. Define the main entry point for the graph node
 def execute_edit(state: GraphState):
     """
     Main entry point for the video editing agent.
+    This node creates a temporary, specialized agent to handle a single edit.
     """
-    print("---VIDEO EDITING AGENT: Starting---")
+    logger.info("--- VIDEO EDITING AGENT: Starting ---")
+    
+    # 1. Get context from the main graph state
+    media_bin = state.get("media_bin", {})
+    active_video_id = state.get("active_video_id")
     parsed_query = state.get("parsed_query", {})
     edit_actions = parsed_query.get("data", [])
 
-    if not edit_actions:
-        return {**state, "error": "No edit actions provided."}
+    logger.info(f"Active Video ID: {active_video_id}")
+    logger.info(f"Media Bin Keys: {list(media_bin.keys())}")
+    logger.info(f"Parsed Edit Actions: {edit_actions}")
 
+    if not all([edit_actions, active_video_id, media_bin]):
+        logger.error("Missing data for video editing agent. Aborting.")
+        return {**state, "error": "Missing data for video editing agent."}
+
+    # 2. Create simplified, "bound" tools for the agent.
+    # These tools are dynamically created to capture the current video context.
+    # This simplifies the agent's job, as it doesn't need to know about the media_bin.
+    @tool
+    def trim_video(start_time: float, end_time: Optional[float] = None) -> str:
+        """Trims the currently active video."""
+        # Call the original tool's underlying function directly
+        return video_tools.trim_video.func(
+            active_video_id=active_video_id, media_bin=media_bin,
+            start_time=start_time, end_time=end_time
+        )
+
+    @tool
+    def add_text_to_video(text: str, start_time: float, duration: float, position: str = "center", fontsize: int = 70, color: str = 'white') -> str:
+        """Adds a text overlay to the currently active video."""
+        # Call the original tool's underlying function directly
+        return video_tools.add_text_to_video.func(
+            active_video_id=active_video_id, media_bin=media_bin,
+            text=text, start_time=start_time, duration=duration,
+            position=position, fontsize=fontsize, color=color
+        )
+
+    @tool
+    def apply_filter_to_video(filter_description: str) -> str:
+        """Applies a filter to the currently active video."""
+        # Call the original tool's underlying function directly
+        return video_tools.apply_filter_to_video.func(
+            active_video_id=active_video_id, media_bin=media_bin,
+            filter_description=filter_description
+        )
+
+    @tool
+    def change_video_speed(speed_factor: float) -> str:
+        """Changes the speed of the currently active video."""
+        # Call the original tool's underlying function directly
+        return video_tools.change_video_speed.func(
+            active_video_id=active_video_id, media_bin=media_bin,
+            speed_factor=speed_factor
+        )
+
+    @tool
+    def concatenate_videos(video_ids: List[str]) -> str:
+        """Concatenates the specified videos together."""
+        # This tool doesn't need an active_video_id, just the media_bin
+        return video_tools.concatenate_videos.func(
+            video_ids=video_ids, media_bin=media_bin
+        )
+
+    tools = [trim_video, add_text_to_video, apply_filter_to_video, change_video_speed, concatenate_videos]
+
+    # 3. Bind tools to the model
+    model = ChatOpenAI(temperature=0, streaming=True).bind_tools(tools)
+    
+    # 4. Create a simplified prompt and invoke the agent directly
     user_request = f"Perform the following video edits: {str(edit_actions)}"
-    video_path = state.get("video_path")
-    full_request = f"""User Request: "{user_request}"
-    Initial video file path: "{video_path}"
-
-    Your task is to execute a plan to fulfill this request. The request will only ever contain a single, simple edit.
-
-    **CRITICAL INSTRUCTION:**
-    1.  You must call the appropriate tool ONE TIME to perform the edit.
-    2.  After the tool is called and you receive a `ToolMessage` with the path to the new video, your job is complete.
-    3.  Your final response MUST NOT contain any more tool calls. It should be a simple confirmation message like "The video has been edited."
+    full_request = f"""Your task is to execute this user request: "{user_request}"
+    
+    You must call the appropriate tool to perform the edit. After the tool is called once, your job is complete.
+    Your final response should be a simple confirmation message.
     """
-
-    initial_agent_state = {
-        "messages": [HumanMessage(content=full_request)],
-        "video_path": video_path
-    }
+    logger.info(f"Agent Prompt:\n{full_request}")
     
-    # Invoke the agent. It will run until it hits the END state.
-    final_agent_state = agent_app.invoke(initial_agent_state)
-    
-    # Extract the final video path from the message history
-    final_video_path = video_path # Default to original path
-    for message in reversed(final_agent_state["messages"]):
-        if isinstance(message, ToolMessage) and ".mp4" in str(message.content):
-            final_video_path = str(message.content)
-            break
+    # --- This is the new, simplified logic ---
+    response_message = model.invoke([HumanMessage(content=full_request)])
+    logger.info(f"Agent Raw Response: {response_message}")
 
-    # Ensure the video is fully written to disk before proceeding
-    if final_video_path and os.path.exists(final_video_path):
-        # This is a simple way to wait for the file to be ready.
-        # For a more robust solution, you might use a file lock or a more sophisticated check.
-        pass
+    # 5. Process the response and execute the chosen tool
+    final_video_path = None
+    if response_message.tool_calls:
+        tool_map = {tool.name: tool for tool in tools}
+        tool_call = response_message.tool_calls[0] # We only expect one tool call
+        tool_name = tool_call['name']
+        tool_args = tool_call['args']
+        
+        logger.info(f"Agent decided to call tool '{tool_name}' with args: {tool_args}")
+        
+        if tool_name in tool_map:
+            selected_tool = tool_map[tool_name]
+            # This is where the actual video processing happens
+            final_video_path = selected_tool.invoke(tool_args)
+        else:
+            logger.error(f"Agent tried to call a non-existent tool: {tool_name}")
+    else:
+        logger.warning("Agent finished without calling a tool.")
 
-    # Construct the public URL for the final video
-    output_url = None
-    if final_video_path:
-        # The URL should be relative to the domain, not the file system.
-        output_url = f"/outputs/{Path(final_video_path).name}"
-
+    logger.info(f"Extracted final video path: {final_video_path}")
+            
+    output_url = f"/outputs/{Path(final_video_path).name}" if final_video_path else None
     final_message = f"Video editing complete. Final version available at: {output_url}"
+    logger.info(f"Final message for UI: {final_message}")
 
-    # Return the final message and output URL to be appended to the history
     return {
         "messages": [AIMessage(
             content=final_message,

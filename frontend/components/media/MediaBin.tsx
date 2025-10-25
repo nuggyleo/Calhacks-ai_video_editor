@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
 
 const MediaBin = () => {
-  const { mediaFiles, currentVideoId, setCurrentVideo, deleteMediaFile, renameMediaFile } = useAppStore();
+  const { mediaBin, activeVideoId, setActiveVideoId, deleteMediaFile, renameMediaFile } = useAppStore();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
@@ -24,11 +24,11 @@ const MediaBin = () => {
   const handleRenameSubmit = (id: string, e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (editingName.trim()) {
       renameMediaFile(id, editingName.trim());
     }
-    
+
     setEditingId(null);
     setEditingName('');
   };
@@ -51,22 +51,22 @@ const MediaBin = () => {
   return (
     <div className="flex-grow bg-gray-900 rounded-lg p-4 flex flex-col">
       <h3 className="text-lg font-semibold mb-3 text-white">My Media</h3>
-      
-      {mediaFiles.length === 0 ? (
+
+      {mediaBin.length === 0 ? (
         <div className="text-gray-500 text-sm flex-grow flex items-center justify-center">
           No media uploaded yet. Start by uploading a video above.
         </div>
       ) : (
         <div className="flex-grow overflow-y-auto space-y-2">
-          {mediaFiles.map((file) => (
+          {mediaBin.map((file) => (
             <div
               key={file.id}
               onMouseEnter={() => setHoveredId(file.id)}
               onMouseLeave={() => setHoveredId(null)}
-              onClick={() => setCurrentVideo(file.url, file.id)}
+              onClick={() => setActiveVideoId(file.id)}
               className={`
                 p-3 rounded-lg cursor-pointer transition-all duration-200 relative group
-                ${currentVideoId === file.id
+                ${activeVideoId === file.id
                   ? 'bg-blue-600 border-2 border-blue-400'
                   : 'bg-gray-800 border-2 border-transparent hover:bg-gray-700'
                 }
@@ -97,7 +97,7 @@ const MediaBin = () => {
                     </>
                   )}
                 </div>
-                
+
                 {/* Action buttons */}
                 {hoveredId === file.id && editingId !== file.id && (
                   <div className="ml-2 flex gap-1 flex-shrink-0">
@@ -120,7 +120,7 @@ const MediaBin = () => {
               </div>
 
               {/* Selected indicator */}
-              {currentVideoId === file.id && (
+              {activeVideoId === file.id && (
                 <div className="absolute top-2 right-2 w-2 h-2 bg-white rounded-full"></div>
               )}
             </div>
@@ -129,9 +129,9 @@ const MediaBin = () => {
       )}
 
       {/* Summary */}
-      {mediaFiles.length > 0 && (
+      {mediaBin.length > 0 && (
         <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500">
-          {mediaFiles.length} video{mediaFiles.length !== 1 ? 's' : ''} uploaded
+          {mediaBin.length} video{mediaBin.length !== 1 ? 's' : ''} uploaded
         </div>
       )}
     </div>

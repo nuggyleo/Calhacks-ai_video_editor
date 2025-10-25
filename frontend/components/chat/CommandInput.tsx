@@ -51,6 +51,11 @@ const CommandInput = () => {
         content: msg.content,
       }));
 
+      // --- FIX: Get the active video's description ---
+      const activeVideo = mediaBin.find(f => f.id === activeVideoId);
+      const videoDescription = activeVideo?.description || '';
+      // --- End Fix ---
+
       const response = await fetch('http://localhost:8000/api/edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -59,6 +64,7 @@ const CommandInput = () => {
           media_bin: mediaBinForApi,
           command: input.trim(),
           chat_history: chatHistoryForApi, // <-- SEND FULL HISTORY
+          video_description: videoDescription, // <-- SEND DESCRIPTION
         }),
       });
 

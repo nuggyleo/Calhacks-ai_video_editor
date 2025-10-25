@@ -84,6 +84,7 @@ class EditCommandRequest(BaseModel):
     active_video_id: str
     media_bin: Dict[str, str]
     command: str
+    video_description: str = ""
     chat_history: List[Dict[str, str]] = []
 
 # Define routes
@@ -210,6 +211,7 @@ async def edit_video(request: EditCommandRequest):
             "query": request.command,
             "media_bin": reconstructed_media_bin,
             "active_video_id": request.active_video_id,
+            "video_description": request.video_description,
         }
         
         result = graph_app.invoke(initial_state)

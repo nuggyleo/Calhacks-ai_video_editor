@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 
 const MessageList = () => {
-  const { currentVideoId, mediaFiles, messages, getMessagesByVideoId } = useAppStore();
+  const { currentVideoId, mediaFiles, messages, getMessagesByVideoId, addMessage } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Get current video name
@@ -17,6 +17,25 @@ const MessageList = () => {
   
   // Get messages for current video
   const videoMessages = currentVideoId ? getMessagesByVideoId(currentVideoId) : [];
+
+  // Auto-inject AI description as a chat message if none exists yet for the current video
+  useEffect(() => {
+    if (!currentVideoId) return;
+    
+    const hasAiDesc = videoMessages.some(m => m.id === `ai-desc-${currentVideoId}`);
+    const video = mediaFiles.find(f => f.id === currentVideoId);
+    
+    if (!hasAiDesc && video?.description) {
+      addMessage({
+        id: `ai-desc-${currentVideoId}`,
+        videoId: currentVideoId,
+        role: 'assistant',
+        content: `**Video Analysis:**\n\n${video.description}`,
+        timestamp: new Date(),
+        status: 'completed',
+      });
+    }
+  }, [currentVideoId, mediaFiles, videoMessages, addMessage]);
   
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -88,7 +107,18 @@ const MessageList = () => {
                     <span className="flex-shrink-0 mt-0.5">🤖</span>
                   )}
                   <div className="flex-grow">
-                    <p className="break-words">{message.content}</p>
+                    <p className="break-words whitespace-pre-wrap prose prose-invert max-w-none text-sm">
+                      {/* Simple markdown rendering for bold and line breaks */}
+                      {message.content.split('\n').map((line, i) => (
+                        <div key={i}>
+                          {line.split(/(\*\*.*?\*\*)/g).map((part, j) => 
+                            part.startsWith('**') && part.endsWith('**') 
+                              ? <strong key={j}>{part.slice(2, -2)}</strong>
+                              : <span key={j}>{part}</span>
+                          )}
+                        </div>
+                      ))}
+                    </p>
                     <div className="flex items-center justify-between gap-2 mt-1 text-xs opacity-70">
                       <span>{formatTime(message.timestamp)}</span>
                       {message.status && (

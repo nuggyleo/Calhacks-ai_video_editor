@@ -12,6 +12,7 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
+.env
 env/
 venv/
 .venv/
@@ -35,3 +36,9 @@ dmypy.json
 # OS-specific
 .DS_Store
 Thumbs.db
+
+# Environment variables
+# Do not commit sensitive API keys or configuration
+.env
+.env.*
+!.env.example

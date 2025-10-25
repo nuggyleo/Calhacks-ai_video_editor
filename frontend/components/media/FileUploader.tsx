@@ -1,7 +1,7 @@
 'use client';
 
 // Video file uploader with drag-and-drop support
-import { useState, useRef, DragEvent, ChangeEvent } from 'react';
+import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 
 const FileUploader = () => {
@@ -9,7 +9,14 @@ const FileUploader = () => {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const { addMediaFile, setUploadProgress, setIsUploading, isUploading, uploadProgress } = useAppStore();
+  const { 
+    addMediaFile, 
+    setUploadProgress, 
+    setIsUploading, 
+    isUploading, 
+    uploadProgress,
+    addMessage,
+  } = useAppStore();
   
   const handleUpload = async (file: File) => {
     if (!file.type.startsWith('video/')) {
@@ -25,54 +32,42 @@ const FileUploader = () => {
       const formData = new FormData();
       formData.append('file', file);
       
-      const xhr = new XMLHttpRequest();
-      
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const progress = (e.loaded / e.total) * 100;
-          setUploadProgress(progress);
-        }
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
       });
-      
-      xhr.addEventListener('load', () => {
-        if (xhr.status === 200) {
-          try {
-            const response = JSON.parse(xhr.responseText);
-            addMediaFile({
-              id: response.file_id,
-              filename: response.filename,
-              url: `http://localhost:8000${response.url}`,
-              type: file.type,
-              uploadedAt: new Date(),
-            });
-            
-            setUploadProgress(100);
-            setTimeout(() => {
-              setIsUploading(false);
-              setUploadProgress(0);
-            }, 500);
-          } catch (e) {
-            console.error('Parse error:', xhr.responseText);
-            setError('Upload succeeded but response parsing failed');
-            setIsUploading(false);
-          }
-        } else {
-          setError(`Upload failed: ${xhr.status}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Add media file
+        addMediaFile({
+          id: data.file_id,
+          filename: data.filename,
+          url: `http://localhost:8000${data.url}`,
+          type: file.type,
+          uploadedAt: new Date(),
+          description: data.description || "",
+          isAnalyzing: false,
+        });
+
+        // The description message is now auto-injected by MessageList,
+        // so no need to call addMessage here.
+
+        setUploadProgress(100);
+        setTimeout(() => {
           setIsUploading(false);
-        }
-      });
-      
-      xhr.addEventListener('error', () => {
-        setError('Network error during upload');
+          setUploadProgress(0);
+        }, 500);
+      } else {
+        const errorText = await response.text();
+        console.error('Upload failed:', errorText);
+        setError(`Upload failed: ${response.statusText}`);
         setIsUploading(false);
-      });
-      
-      // Use the Next.js API route instead of calling backend directly
-      xhr.open('POST', '/api/upload');
-      xhr.send(formData);
-      
+      }
     } catch (err) {
-      setError('Upload failed');
+      console.error('Upload error:', err);
+      setError('An error occurred during upload.');
       setIsUploading(false);
     }
   };

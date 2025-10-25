@@ -1,13 +1,25 @@
-# This file will contain functions that interact with speech-to-text AI models.
-# Its primary purpose is to take a video or audio file and return a structured
-# subtitle file (e.g., SRT format) with text and timestamps.
-#
-# Core Logic:
-# 1. Extract the audio stream from the input video file.
-# 2. Send the audio data to a transcription service (e.g., OpenAI's Whisper API).
-# 3. Receive the transcription result, which may include word-level timestamps.
-# 4. Format the result into a standard subtitle format.
-#
-# This enables features like automatic subtitle generation.
+import os
+from openai import OpenAI
+from dotenv import load_dotenv
 
-pass # Placeholder
+load_dotenv()
+
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+def transcribe_audio(audio_path: str) -> str:
+    """
+    Transcribes an audio file using OpenAI's Whisper model.
+
+    Args:
+        audio_path: The path to the audio file.
+
+    Returns:
+        The transcribed text.
+    """
+    with open(audio_path, "rb") as audio_file:
+        transcription = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            response_format="verbose_json" # Requesting timestamps
+        )
+    return transcription

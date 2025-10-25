@@ -8,88 +8,48 @@ from backend.graph.state import GraphState
 
 # This is the new, powerful prompt for our chatbot.
 # It instructs the AI on its role, capabilities, and the JSON output format.
-SYSTEM_PROMPT = """You are an expert AI video editing assistant. Your first and most important task is to analyze the user's query to determine the most efficient path to fulfill their request. You must classify the query into one of two categories and format your response as a JSON object with a "tool_choice" and a "data" payload.
+SYSTEM_PROMPT = """You are an expert AI video editing assistant. Your first and most important task is to analyze the user's query to determine the most efficient path to fulfill their request. You must classify the query into one of three categories and format your response as a JSON object with a "tool_choice" and a "data" payload.
 
 **1. Direct Edit (`tool_choice`: "execute_edit")**
-If the user provides a direct, specific, and unambiguous command that contains all the necessary parameters for an edit, you must choose this path. This is for commands that DO NOT require you to see or understand the video's content.
-
-*   **JSON Format for `direct_edit`:**
-    ```json
-    {
-      "tool_choice": "execute_edit",
-      "data": [
-        {
-          "action": "action_name",
-          ...action_parameters
-        }
-      ]
-    }
-    ```
-
+If the user provides a direct, specific command with all necessary parameters (e.g., "trim from 5 to 10s", "apply grayscale filter"). This path does not require visual context.
+*   **JSON Format:** `{"tool_choice": "execute_edit", "data": [{"action": "action_name", ...}]}`
 *   **Detailed Action Examples:**
-    *   **User:** "Trim the video from 10 seconds to 30 seconds."
-        `{"action": "trim", "start_time": 10, "end_time": 30}`
-    *   **User:** "Cut the first 3 seconds."
-        `{"action": "trim", "start_time": 3}`
-    *   **User:** "Add the text 'Hello World' at the top of the screen."
-        `{"action": "add_text", "text": "Hello World", "position": "top"}`
-    *   **User:** "Make the video black and white."
-        `{"action": "apply_filter", "filter_type": "grayscale"}`
+    *   "Trim the video from 10s to 30s." -> `{"action": "trim", "start_time": 10, "end_time": 30}`
+    *   "Cut the first 3 seconds." -> `{"action": "trim", "start_time": 3}`
+    *   "Add 'Hello World' at the top." -> `{"action": "add_text", "text": "Hello World", "position": "top"}`
+    *   "Make the video black and white." -> `{"action": "apply_filter", "filter_type": "grayscale"}`
 
-**2. Contextual Question (`tool_choice`: "answer_question")**
-If the user asks a question about the video's content, asks for creative advice, or gives a vague command that requires visual context to understand, you must choose this path. This path will require analyzing the video's content.
+**2. Functional Question (`tool_choice`: "functional_question")**
+If the user asks a general question about your capabilities, the editing process, or anything that does NOT require knowledge of the video's specific content (e.g., "What can you do?", "How do I add text?").
+*   **JSON Format:** `{"tool_choice": "functional_question", "data": {"question": "The user's original query"}}`
 
-*   **Examples of Contextual Questions:**
-    *   "What is this video about?"
-    *   "How can I make the intro more exciting?"
-    *   "Cut the part where the man is smiling." (Requires vision to find the time)
-    *   "Add a title card that matches the video's aesthetic."
+**3. Contextual Question (`tool_choice`: "contextual_question")**
+If the user asks a question about the video's content, asks for creative advice, or gives a vague command that requires visual context (e.g., "What is this video about?", "Make the intro more exciting.", "Cut the part where the man is smiling.").
+*   **JSON Format:** `{"tool_choice": "contextual_question", "data": {"question": "The user's original query"}}`
 
-*   **JSON Format for `contextual_question`:**
-    ```json
-    {
-      "tool_choice": "answer_question",
-      "data": {
-        "question": "The user's original query"
-      }
-    }
-    ```
-
-You MUST respond with a single JSON object. Do not add any conversational text. Your primary job is to be an efficient router.
+You MUST respond with a single JSON object. Your primary job is to be an efficient router.
 """
 
 def chatbot(state: GraphState):
     """
-    Acts as the brain of the graph. It parses the user's query using an LLM
-    and formats it into a structured JSON for downstream tasks.
+    Acts as the brain of the graph. It uses the full conversation history
+    to parse the user's latest query into a structured JSON format.
     """
     
     # Initialize the chatbot model
     model = ChatOpenAI(temperature=0, streaming=True, model_kwargs={"response_format": {"type": "json_object"}})
     
-    query = state.get("query")
-    video_description = state.get("video_description", "No description available.")
+    # The full message history is in the state.
+    messages = state.get("messages", [])
+    if not messages:
+        # This should not happen if called from main.py, but as a safeguard:
+        return {**state, "parsed_query": {"tool_choice": "answer_question", "data": {"question": "Hi"}}}
 
-    if not query:
-        return {**state, "error": "Query is missing"}
+    # The system prompt should always be the first message for consistent behavior.
+    full_message_list = [SystemMessage(content=SYSTEM_PROMPT)] + messages
 
-    # Construct a dynamic prompt that includes the video description
-    prompt_with_context = f"""{SYSTEM_PROMPT}
-
-Here is the description of the current video:
----
-{video_description}
----
-"""
-
-    # Create the message list with the system prompt and user query
-    messages: List[BaseMessage] = [
-        SystemMessage(content=prompt_with_context),
-        HumanMessage(content=query)
-    ]
-    
-    # Get the AI's response
-    response = model.invoke(messages)
+    # Get the AI's response based on the full history
+    response = model.invoke(full_message_list)
     
     try:
         # The response content should be a JSON string. We parse it.

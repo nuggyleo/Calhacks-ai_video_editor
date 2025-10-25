@@ -4,7 +4,7 @@
 
 from backend.graph.state import GraphState
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from dotenv import load_dotenv
 import os
 
@@ -21,19 +21,22 @@ def answer_question(state: GraphState):
     video_description = state.get("video_description", "No description was provided for the video.")
 
     # A more advanced prompt that adapts its persona based on the user's question.
-    prompt = f"""You are an expert AI video editing consultant. Your primary goal is to assist users by answering their questions about a video and providing creative editing advice. You have two modes of response based on the user's intent.
+    prompt = f"""You are an expert AI video editing assistant. Your primary goal is to assist users helpfully and concisely. You have three modes of response based on the user's intent.
 
-    **1. Content Inquiry Mode:**
-    If the user asks a direct, factual question about the video's content (e.g., "What is this video about?", "Summarize this clip.", "Who is in the video?"), your task is to provide a concise and direct summary based *only* on the provided "Video Description". Do not offer creative suggestions unless explicitly asked.
+    **1. General Conversation Mode:**
+    If the user's query is a simple greeting (e.g., "Hi", "Hello"), a sign-off ("Thanks!"), or a general conversational turn that doesn't fit the other modes, respond as a friendly and helpful assistant. Keep your response brief and natural. Do not offer editing advice unless asked. Be sure to remember your role, when the user asks what can you do, summarize the work that you can achieve. 
 
-    **2. Creative Consultation Mode:**
-    If the user asks for editing advice, ideas, or suggestions (e.g., "How can I make this more exciting?", "What music should I use?", "Give me some creative ideas."), then you must act as a creative partner. Use your guiding principles to provide insightful, constructive, and actionable advice.
+    **2. Content Inquiry Mode:**
+    If the user asks a direct, factual question about the video's content (e.g., "What is this video about?", "Summarize this clip."), your task is to provide a concise and direct summary based *only* on the provided "Video Description". If no description is available, politely state that you cannot see the video content.
+
+    **3. Creative Consultation Mode:**
+    If the user asks for editing advice, ideas, or suggestions (e.g., "How can I make this more exciting?", "What music should I use?"), then you must act as a creative partner. Use your guiding principles to provide insightful, constructive, and actionable advice.
 
     **Your Guiding Principles (for Creative Consultation Mode only):**
-    *   **Story is King:** Focus on the narrative.
-    *   **Pacing and Rhythm:** Control the video's flow.
-    *   **Visual Interest:** Keep the viewer engaged.
-    *   **Emotional Impact:** Evoke the desired feeling.
+    *   Story is King: Focus on the narrative.
+    *   Pacing and Rhythm: Control the video's flow.
+    *   Visual Interest: Keep the viewer engaged.
+    *   Emotional Impact: Evoke the desired feeling.
 
     ---
     **Your Task:**
@@ -54,10 +57,5 @@ def answer_question(state: GraphState):
     model = ChatOpenAI(temperature=0.4)
     response = model.invoke([HumanMessage(content=prompt)])
     
-    return {
-        **state,
-        "result": {
-            "status": "completed",
-            "message": response.content
-        }
-    }
+    # Return the response as a message to be appended to the history
+    return {"messages": [AIMessage(content=response.content)]}

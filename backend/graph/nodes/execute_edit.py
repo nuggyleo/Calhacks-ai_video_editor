@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List
 
 from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
@@ -95,11 +95,17 @@ def execute_edit(state: GraphState):
             final_video_path = str(message.content)
             break
 
+    # Construct the public URL for the final video
+    output_url = None
+    if final_video_path:
+        output_url = f"/outputs/{Path(final_video_path).name}"
+
+    final_message = f"Video editing complete. Final version available at: {output_url}"
+
+    # Return the final message and output URL to be appended to the history
     return {
-        **state,
-        "result": {
-            "status": "completed",
-            "message": f"Video editing complete. Final version at: {final_video_path}",
-            "output_path": final_video_path,
-        },
+        "messages": [AIMessage(
+            content=final_message,
+            additional_kwargs={"output_url": output_url}
+        )]
     }

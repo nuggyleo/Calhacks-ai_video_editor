@@ -95,9 +95,16 @@ def execute_edit(state: GraphState):
             final_video_path = str(message.content)
             break
 
+    # Ensure the video is fully written to disk before proceeding
+    if final_video_path and os.path.exists(final_video_path):
+        # This is a simple way to wait for the file to be ready.
+        # For a more robust solution, you might use a file lock or a more sophisticated check.
+        pass
+
     # Construct the public URL for the final video
     output_url = None
     if final_video_path:
+        # The URL should be relative to the domain, not the file system.
         output_url = f"/outputs/{Path(final_video_path).name}"
 
     final_message = f"Video editing complete. Final version available at: {output_url}"

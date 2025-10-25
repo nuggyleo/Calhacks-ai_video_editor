@@ -157,11 +157,18 @@ async def edit_video(request: EditCommandRequest):
         
         # Construct the video file path from the URL
         filename = request.video_url.split("/")[-1]
-        video_path = str(UPLOAD_DIR / filename)
-
-        if not os.path.exists(video_path):
-            raise HTTPException(status_code=404, detail=f"Video file not found at path: {video_path}")
         
+        # Check for the video in both the uploads and outputs directories
+        video_path_in_uploads = UPLOAD_DIR / filename
+        video_path_in_outputs = OUTPUT_DIR / filename
+        
+        if video_path_in_uploads.exists():
+            video_path = str(video_path_in_uploads)
+        elif video_path_in_outputs.exists():
+            video_path = str(video_path_in_outputs)
+        else:
+            raise HTTPException(status_code=404, detail=f"Video file not found in uploads or outputs: {filename}")
+
         # Construct the message history from the request
         messages = []
         for msg in request.chat_history:

@@ -23,18 +23,16 @@ def execute_edit(state: GraphState):
     """
     
     video_path = state.get("video_path")
-    parsed_query = state.get("parsed_query", {})
-    
-    if not video_path or not os.path.exists(video_path):
-        return {
-            **state,
-            "error": f"Video file not found: {video_path}",
-            "result": None
-        }
+    parsed_query = state.get("parsed_query")
+
+    if not video_path or not parsed_query:
+        return {**state, "error": "Missing video path or parsed query."}
     
     try:
-        # Extract the edit actions from the parsed query
-        edit_data = parsed_query.get("data", [])
+        # The 'data' from the parsed query should be a list of edit actions
+        edit_data = parsed_query.get("data")
+        
+        # Ensure edit_data is a list
         if not isinstance(edit_data, list):
             edit_data = [edit_data]
         
@@ -47,14 +45,18 @@ def execute_edit(state: GraphState):
             
             if action_type == "trim" or action_type == "cut":
                 # Trim the video from start_time to end_time
-                start_time = action.get("start_time", 0)
-                end_time = action.get("end_time", clip.duration)
+                start_time = action.get("start_time")
+                end_time = action.get("end_time")
+
+                # If the user says "cut the first 3 seconds", start_time would be 3 and end_time would be None.
+                # If they say "cut the last 3 seconds", end_time would be clip.duration - 3 and start_time would be None.
                 
-                # Make sure to get a full clip object
-                with VideoFileClip(video_path) as video:
-                    clip = video.subclip(start_time, end_time)
+                final_start = start_time if start_time is not None else 0
+                final_end = end_time if end_time is not None else clip.duration
+
+                clip = clip.subclip(final_start, final_end)
                 
-                print(f"✅ Trimmed video from {start_time}s to {end_time}s")
+                print(f"✅ Trimmed video from {final_start}s to {final_end}s")
             
             elif action_type == "add_text":
                 # Add text/subtitle to the video
@@ -88,27 +90,32 @@ def execute_edit(state: GraphState):
                 clip = set_audio(clip, audio_path)
                 print(f"✅ Set audio to: {audio_path}")
         
+        # Define the output directory relative to the project root
+        # Assumes this script is in backend/graph/nodes
+        output_dir = Path(__file__).parent.parent.parent.parent / "outputs"
+        output_dir.mkdir(exist_ok=True, parents=True)
+
+        # Create a unique output path
+        original_filename = Path(video_path).name
+        output_path = str(output_dir / f"edited_{original_filename}")
+        
         # Export the final edited video
-        output_path = str(Path(video_path).parent / f"edited_{Path(video_path).name}")
         export_video(clip, output_path)
         
         return {
-            **state,
             "result": {
-                "status": "success",
-                "output_path": output_path,
-                "message": "Video editing completed successfully"
-            },
-            "error": None
+                "status": "completed",
+                "message": f"Video edited successfully! You can find it at: {output_path}",
+                "output_path": output_path
+            }
         }
     
     except Exception as e:
-        print(f"❌ Error during video editing: {str(e)}")
         return {
             **state,
             "error": str(e),
             "result": {
                 "status": "error",
-                "message": f"Error during video editing: {str(e)}"
+                "message": f"An error occurred during video editing: {str(e)}"
             }
         }

@@ -10,14 +10,13 @@ import { useAppStore } from '@/lib/store';
 const CommandInput = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { currentVideoId, currentVideoUrl, addMessage, updateMessage } = useAppStore();
+  const { currentVideoId, currentVideoUrl, mediaFiles, addMessage, updateMessage } = useAppStore();
 
   const handleSend = async () => {
-    if (!input.trim() || !currentVideoId) return;
-    
+    if (!input.trim() || !currentVideoId || !currentVideoUrl) return;
+
     setIsLoading(true);
-    
-    // Add user message to the store
+
     const userMessageId = `msg-${Date.now()}`;
     addMessage({
       id: userMessageId,
@@ -27,21 +26,22 @@ const CommandInput = () => {
       timestamp: new Date(),
       status: 'completed',
     });
-    
-    // Add a temporary "thinking..." message from the assistant
+
     const assistantMessageId = `assistant-${Date.now()}`;
     addMessage({
       id: assistantMessageId,
       videoId: currentVideoId,
       role: 'assistant',
-      content: 'Thinking...',
+      content: '🧠 Processing...',
       timestamp: new Date(),
       status: 'pending',
     });
-    
+
     setInput('');
-    
+
     try {
+      const video = mediaFiles.find(f => f.id === currentVideoId);
+      
       const response = await fetch('http://localhost:8000/api/edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,6 +49,7 @@ const CommandInput = () => {
           video_id: currentVideoId,
           video_url: currentVideoUrl,
           command: input.trim(),
+          video_description: video?.description || '',
         }),
       });
 
@@ -58,7 +59,6 @@ const CommandInput = () => {
       
       const result = await response.json();
       
-      // Update the assistant's message with the actual response
       updateMessage(assistantMessageId, {
         content: result.message || 'I received a response, but it was empty.',
         status: 'completed',

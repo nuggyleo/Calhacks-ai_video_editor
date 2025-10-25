@@ -12,16 +12,18 @@ if str(PROJECT_ROOT) not in sys.path:
 # --- End Path Hotfix ---
 
 # This is the main entry point for the FastAPI application.
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+
+import os
 import uuid
 import tempfile
 import json
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-import subprocess
-import base64
-import os
+
+from backend.graph.graph import app as graph_app
+
 
 app = FastAPI(
     title="Conversational Video Editor API",
@@ -164,20 +166,20 @@ async def edit_video(request: EditCommandRequest):
         print(f"Video ID: {request.video_id}")
         print(f"Command: {request.command}")
         
-        # Import the graph
-        from backend.graph.graph import app as graph
-        
-        # Find the video file path from the URL
-        from pathlib import Path
-        import tempfile
+        # Construct the video file path from the URL
         filename = request.video_url.split("/")[-1]
-        file_path = str(Path(tempfile.gettempdir()) / "calhacks_uploads" / filename)
+        video_path = str(UPLOAD_DIR / filename)
+
+        if not os.path.exists(video_path):
+            raise HTTPException(status_code=404, detail=f"Video file not found at path: {video_path}")
         
         # Run the graph with the user's command
-        result = graph.invoke({
+        initial_state = {
             "query": request.command,
-            "video_path": file_path,
-        })
+            "video_path": video_path,
+        }
+        
+        result = graph_app.invoke(initial_state)
         
         # Get the chatbot's response from the result
         execution_result = result.get("result", {})

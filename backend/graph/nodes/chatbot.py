@@ -15,16 +15,30 @@ def chatbot(state: GraphState):
     
     # Get the project context from the state
     media_bin = state.get("media_bin", {})
+    media_file_info = state.get("media_file_info", {})
     active_video_id = state.get("active_video_id")
 
+    print(f"[CHATBOT] Received media_file_info: {media_file_info}")
+
     # Format the context for the prompt
-    # We only need filename and a generic identifier like "Video 1", "Video 2" for the AI
-    media_bin_context = {
-        vid_id: {"filename": Path(path).name}
-        for vid_id, path in media_bin.items()
-    }
+    # Use frontend-provided file info if available, otherwise infer from path
+    media_bin_context = {}
+    for vid_id, path in media_bin.items():
+        if vid_id in media_file_info:
+            # Use frontend-provided info (includes user-set filenames)
+            media_bin_context[vid_id] = media_file_info[vid_id]
+        else:
+            # Fallback: detect from file path
+            filename = Path(path).name
+            ext = Path(path).suffix.lower()
+            media_type = "audio" if ext in ['.mp3', '.wav', '.m4a', '.aac'] else "video"
+            media_bin_context[vid_id] = {"filename": filename, "type": media_type}
+    
+    print(f"[CHATBOT] Final media_bin_context: {json.dumps(media_bin_context, indent=2)}")
 
     # This is the new, powerful prompt for our chatbot.
+    SYSTEM_PROMPT = f"""You are an expert AI video editing assistant. You are working in a multi-media environment with both videos and audio files.
+Your first task is to analyze the user's query and the current project state to determine the most efficient action. The project state includes a `media_bin` (a dictionary of available videos and audio files) and an `active_video_id` (the video the user is currently focused on).
     SYSTEM_PROMPT = f"""You are a pure JSON parsing agent. Your sole purpose is to analyze a user's query and the current project state, and then convert that query into a specific JSON format. Do not provide any conversational text, explanations, or suggestions. Your output must be a single, valid JSON object and nothing else.
 
 You must classify the query into one of two tool choices: "execute_edit" or "answer_question".

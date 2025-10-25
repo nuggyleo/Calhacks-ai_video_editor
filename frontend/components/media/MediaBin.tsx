@@ -10,11 +10,15 @@ const MediaBin = () => {
     mediaBin, activeVideoId, setActiveVideoId,
     deleteMediaFile, renameMediaFile,
     addMediaFile, setIsUploading, setUploadProgress
-  } = useAppStore();
+ , saveVideo } = useAppStore();
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  // Filter to show only video files
+  const videoFiles = mediaBin.filter(file => file.mediaType === 'video');
 
   const handleFileUpload = async (file: File) => {
     const mediaType = file.type.startsWith('video/') ? 'video' : 'audio';
@@ -105,6 +109,19 @@ const MediaBin = () => {
     setEditingId(null);
     setEditingName('');
   };
+  
+  const handleSaveVideo = async (file: typeof videoFiles[0], e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSavingId(file.id);
+    try {
+      await saveVideo(file.url, file.filename, file.description);
+      setTimeout(() => setSavingId(null), 2000); // Show success for 2 seconds
+    } catch (error) {
+      console.error('Failed to save video:', error);
+      alert('Failed to save video');
+      setSavingId(null);
+    }
+  };
 
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleDateString('en-US', {
@@ -119,13 +136,13 @@ const MediaBin = () => {
     <div className="h-full flex flex-col space-y-4">
       <FileUploader />
 
-      {mediaBin.length === 0 ? (
+      {videoFiles.length === 0 ? (
         <div className="text-gray-500 text-sm flex-grow flex items-center justify-center">
           <p>Your uploaded videos will appear here.</p>
         </div>
       ) : (
         <div className="flex-grow overflow-y-auto space-y-2 pr-2">
-          {mediaBin.map((file) => (
+          {videoFiles.map((file) => (
             <div
               key={file.id}
               onMouseEnter={() => setHoveredId(file.id)}
@@ -169,6 +186,24 @@ const MediaBin = () => {
                 {hoveredId === file.id && editingId !== file.id && (
                   <div className="ml-2 flex gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
+                      onClick={(e) => handleSaveVideo(file, e)}
+                      className="p-1 hover:bg-green-500/20 rounded"
+                      title={savingId === file.id ? "Saved!" : "Save to collection"}
+                      disabled={savingId === file.id}
+                    >
+                      {savingId === file.id ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                          <polyline points="17 21 17 13 7 13 7 21"/>
+                          <polyline points="7 3 7 8 15 8"/>
+                        </svg>
+                      )}
+                    </button>
+                    <button
                       onClick={(e) => handleRenameClick(file.id, file.filename, e)}
                       className="p-1 hover:bg-gray-600 rounded"
                       title="Rename video"
@@ -196,9 +231,9 @@ const MediaBin = () => {
       )}
 
       {/* Summary */}
-      {mediaBin.length > 0 && (
+      {videoFiles.length > 0 && (
         <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500">
-          {mediaBin.length} video{mediaBin.length !== 1 ? 's' : ''} uploaded
+          {videoFiles.length} video{videoFiles.length !== 1 ? 's' : ''} uploaded
         </div>
       )}
     </div>

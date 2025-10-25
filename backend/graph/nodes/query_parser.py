@@ -26,28 +26,19 @@ client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 def query_parser(state: GraphState):
     """
-    Parses the structured query from the chatbot and routes to the next node.
+    This node is now a pass-through. The main routing logic is handled by the
+    pre_analysis_router and the chatbot's tool_choice. This node remains
+    to maintain the graph structure but performs no complex operations.
+    It primarily prepares the state for the answer_question node.
     """
-    parsed_query = state.get("parsed_query")
-    if not parsed_query or "type" not in parsed_query:
-        # If parsing failed or the format is wrong, end the graph gracefully.
-        state["error"] = "Invalid or missing parsed query from chatbot."
-        state["result"] = {"message": "Sorry, I couldn't understand the request structure."}
-        return state
-
-    query_type = parsed_query.get("type")
-
-    # Route based on the 'type' field from the chatbot's JSON output.
-    if query_type == "question":
-        state["next_node"] = "answer_question"
-    elif query_type == "edit":
-        state["next_node"] = "execute_edit"
-    else:
-        # Handle unknown types
-        state["error"] = f"Unknown query type: {query_type}"
-        state["result"] = {"message": f"Sorry, I don't know how to handle a '{query_type}' request."}
-        # In a real scenario, you might want a default fallback or end node.
-        # For now, we can route to answer_question to explain the error.
-        state["next_node"] = "answer_question"
-
+    # The 'parsed_query' from the chatbot is already in the correct format.
+    # We just ensure the state is passed along correctly.
+    print("--- PASSING THROUGH QUERY PARSER ---")
+    
+    # The primary purpose is now to set 'next_node' for the final step,
+    # as the main routing happens before this. We can infer the next step
+    # from the structure of parsed_query.
+    if "question" in state.get("parsed_query", {}).get("data", {}):
+         state["next_node"] = "answer_question"
+    
     return state

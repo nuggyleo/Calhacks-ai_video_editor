@@ -11,6 +11,24 @@ from backend.graph.nodes.chatbot import chatbot
 from backend.graph.nodes.vision_analyzer import vision_analyzer_node
 
 
+def pre_analysis_router(state: GraphState):
+    """
+    Routes to the correct tool based on the chatbot's initial analysis,
+    bypassing vision analysis for direct edits.
+    """
+    tool_choice = state.get("parsed_query", {}).get("tool_choice")
+    if tool_choice == "execute_edit":
+        print("--- ROUTING DIRECTLY TO EXECUTE EDIT ---")
+        return "execute_edit"
+    elif tool_choice == "answer_question":
+        print("--- ROUTING TO CONTEXTUAL ANALYSIS ---")
+        return "should_analyze_vision"
+    else:
+        # Fallback or error handling
+        print(f"--- UNKNOWN TOOL CHOICE: {tool_choice} ---")
+        return "answer_question" # Or handle as an error
+
+
 def should_analyze_vision(state: GraphState):
     """
     Determines whether to run the vision analysis based on the presence of a video description.
@@ -48,9 +66,20 @@ workflow.add_node("vision_analyzer", vision_analyzer_node)
 # Set the entry point
 workflow.set_entry_point("chatbot")
 
-# After the chatbot, decide whether to analyze the video content.
+# After the chatbot, decide the primary tool path.
 workflow.add_conditional_edges(
     "chatbot",
+    pre_analysis_router,
+    {
+        "execute_edit": "execute_edit",
+        "should_analyze_vision": "should_analyze_vision",
+        "answer_question": "answer_question" # Fallback
+    }
+)
+
+# For contextual questions, decide whether to run vision analysis.
+workflow.add_conditional_edges(
+    "should_analyze_vision",
     should_analyze_vision,
     {
         "vision_analyzer": "vision_analyzer",
@@ -72,9 +101,10 @@ workflow.add_conditional_edges(
     },
 )
 
-# After a tool is used, the conversation loops back to the chatbot.
+# After answering a question, the conversation can continue.
 workflow.add_edge("answer_question", "chatbot")
-workflow.add_edge("execute_edit", "chatbot")
+# After an edit is executed, the graph should end for this request-response cycle.
+workflow.add_edge("execute_edit", END)
 
 # Compile the graph
 app = workflow.compile()

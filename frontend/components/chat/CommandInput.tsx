@@ -67,7 +67,9 @@ const CommandInput = () => {
       
       // If the backend sent back a new video URL, update the player
       if (result.output_url) {
-        setCurrentVideoUrl(result.output_url);
+        // Construct the full URL, assuming the backend is running on localhost:8000
+        const fullUrl = `http://localhost:8000${result.output_url}`;
+        setCurrentVideoUrl(fullUrl);
       }
       
     } catch (error) {

@@ -7,6 +7,21 @@
 import { useRef, useState, useEffect, MouseEvent, DragEvent, ChangeEvent } from 'react';
 import { useAppStore } from '@/lib/store';
 
+const funQuotes = [
+  "Every frame tells a story. What's yours?",
+  "Lights, camera... AI action! 🎬",
+  "Your next masterpiece starts here.",
+  "Cut. Edit. Perfect. Repeat.",
+  "Hollywood magic, AI powered.",
+  "Transform footage into feelings.",
+  "From raw clips to reel art.",
+  "Where creativity meets technology.",
+  "Edit smarter, not harder.",
+  "Your vision, our AI precision.",
+  "Because every second matters.",
+  "Directing made delightful.",
+];
+
 const VideoPlayer = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
@@ -23,6 +38,15 @@ const VideoPlayer = () => {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
+  const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
+
+  // Rotate quotes every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentQuoteIndex((prev) => (prev + 1) % funQuotes.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Get the active video file from the mediaBin
   const activeVideo = mediaBin.find(f => f.id === activeVideoId);
@@ -241,14 +265,24 @@ const VideoPlayer = () => {
               </div>
             </div>
           ) : (
-            <div className="space-y-8">
+            <div className="space-y-12">
               {/* Logo */}
-              <div className="font-lobster text-8xl bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent animate-pulse-slow">
+              <div className="font-lobster text-9xl bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent animate-pulse-slow">
                 Cue
               </div>
 
+              {/* Dynamic Quote */}
+              <div className="h-10 flex items-center justify-center">
+                <p 
+                  key={currentQuoteIndex}
+                  className="text-2xl font-light text-gray-400 animate-fade-in-out italic"
+                >
+                  {funQuotes[currentQuoteIndex]}
+                </p>
+              </div>
+
               {/* Upload prompt */}
-              <div className="space-y-4">
+              <div className="space-y-6 pt-8">
                 <div className={`
                   w-24 h-24 mx-auto rounded-full flex items-center justify-center
                   bg-gradient-to-br from-purple-600/20 to-blue-600/20 border-2
@@ -258,32 +292,32 @@ const VideoPlayer = () => {
                     : 'border-gray-700 hover:border-purple-600 hover:scale-105'
                   }
                 `}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="17 8 12 3 7 8"/>
                     <line x1="12" x2="12" y1="3" y2="15"/>
                   </svg>
                 </div>
                 
-                <div className="space-y-2">
-                  <p className="text-2xl font-light text-gray-300">
+                <div className="space-y-3">
+                  <p className="text-3xl font-light text-gray-300">
                     {isDraggingFile ? 'Drop your video here' : 'Upload a video to start'}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-base text-gray-500">
                     Drag & drop or click to browse
                   </p>
                 </div>
-              </div>
 
-              {/* Supported formats */}
-              <div className="flex items-center justify-center gap-3 text-xs text-gray-600">
-                <span>MP4</span>
-                <span>•</span>
-                <span>MOV</span>
-                <span>•</span>
-                <span>AVI</span>
-                <span>•</span>
-                <span>WebM</span>
+                {/* Supported formats */}
+                <div className="flex items-center justify-center gap-4 text-sm text-gray-600 pt-4">
+                  <span>MP4</span>
+                  <span>•</span>
+                  <span>MOV</span>
+                  <span>•</span>
+                  <span>AVI</span>
+                  <span>•</span>
+                  <span>WebM</span>
+                </div>
               </div>
             </div>
           )}
@@ -306,12 +340,23 @@ const VideoPlayer = () => {
             50% { opacity: 0.8; }
           }
 
+          @keyframes fade-in-out {
+            0% { opacity: 0; transform: translateY(-10px); }
+            10% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(10px); }
+          }
+
           .animate-shimmer {
             animation: shimmer 2s infinite;
           }
 
           .animate-pulse-slow {
             animation: pulse-slow 3s ease-in-out infinite;
+          }
+
+          .animate-fade-in-out {
+            animation: fade-in-out 3s ease-in-out;
           }
 
           .bg-gradient-radial {

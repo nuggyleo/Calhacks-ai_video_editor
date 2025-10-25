@@ -40,10 +40,20 @@ const CommandInput = () => {
 
     try {
       // Create a simple dictionary for the backend from the mediaBin
+      // Now includes filename information so AI can identify files by name
       const mediaBinForApi = mediaBin.reduce((acc, file) => {
-        acc[file.id] = file.url; // Or file path if that's what backend expects
+        acc[file.id] = file.url; // Keep URL for backward compatibility
         return acc;
       }, {} as Record<string, string>);
+      
+      // Also send filename mapping for AI to understand user references
+      const mediaFileInfo = mediaBin.reduce((acc, file) => {
+        acc[file.id] = {
+          filename: file.filename,
+          type: file.mediaType || 'video'
+        };
+        return acc;
+      }, {} as Record<string, any>);
 
       // --- NEW: Prepare the full chat history for the backend ---
       const chatHistoryForApi = messages.map(msg => ({
@@ -57,8 +67,9 @@ const CommandInput = () => {
         body: JSON.stringify({
           active_video_id: activeVideoId,
           media_bin: mediaBinForApi,
+          media_file_info: mediaFileInfo, // NEW: Send filename info for AI to identify files
           command: input.trim(),
-          chat_history: chatHistoryForApi, // <-- SEND FULL HISTORY
+          chat_history: chatHistoryForApi,
         }),
       });
 
@@ -67,15 +78,28 @@ const CommandInput = () => {
       }
 
       const result = await response.json();
+      console.log('Backend result:', result);
 
       const fullUrl = result.output_url ? `http://localhost:8000${result.output_url}` : undefined;
       const messageContent = result.message || 'I received a response, but it was empty.';
+      const mediaType = result.media_type || 'video'; // Get media type from backend
+      const mediaFilename = result.filename || undefined;
 
-      // --- NEW: Use the single atomic action to sync state ---
+      console.log('Parsed response:', { fullUrl, messageContent, mediaType, mediaFilename });
+
+      // --- Update message with media result (video or audio) ---
       if (fullUrl && activeVideoId) {
-        handleSuccessfulEdit(activeVideoId, fullUrl, assistantMessageId, messageContent);
+        // Just update the message with the result, don't modify mediaBin
+        updateMessage(assistantMessageId, {
+          content: messageContent,
+          status: 'completed',
+          timestamp: new Date(),
+          videoUrl: fullUrl, // This can be either video or audio URL
+          mediaType: mediaType,
+          mediaFilename: mediaFilename,
+        });
       } else {
-        // If there's no new video, just update the message text.
+        // If there's no new media, just update the message text.
         updateMessage(assistantMessageId, {
           content: messageContent,
           status: 'completed',

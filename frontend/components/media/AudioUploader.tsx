@@ -1,10 +1,10 @@
 'use client';
 
-// Video file uploader with drag-and-drop support
-import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
+// Audio file uploader with drag-and-drop support
+import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 import { useAppStore } from '@/lib/store';
 
-const FileUploader = () => {
+const AudioUploader = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -15,14 +15,11 @@ const FileUploader = () => {
     setIsUploading,
     isUploading,
     uploadProgress,
-    setActiveVideoId,
-    addMessage,
-    updateMessage,
   } = useAppStore();
 
   const handleUpload = async (file: File) => {
-    if (!file.type.startsWith('video/')) {
-      setError('Please upload a valid video file');
+    if (!file.type.startsWith('audio/')) {
+      setError('Please upload a valid audio file');
       return;
     }
 
@@ -33,6 +30,7 @@ const FileUploader = () => {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('mediaType', 'audio'); // Indicate this is an audio file
 
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -42,45 +40,23 @@ const FileUploader = () => {
       if (response.ok) {
         const data = await response.json();
 
-        const thinkingMessageId = `thinking-${Date.now()}`;
-        addMessage({
-          id: thinkingMessageId,
-          role: 'assistant',
-          content: 'Analyzing video content...',
-          timestamp: new Date(),
-          status: 'pending',
+        // Add audio file to the store (no analysis needed for audio)
+        addMediaFile({
+          id: data.file_id,
+          filename: data.filename,
+          url: `http://localhost:8000${data.url}`,
+          type: file.type,
+          mediaType: 'audio', // This is an audio file
+          uploadedAt: new Date(),
+          description: data.description || "",
+          isAnalyzing: false,
         });
 
-        // Simulate a delay for "thinking"
+        setUploadProgress(100);
         setTimeout(() => {
-          // Add media file to the store
-          addMediaFile({
-            id: data.file_id,
-            filename: data.filename,
-            url: `http://localhost:8000${data.url}`,
-            type: file.type,
-            mediaType: 'video', // This is a video file
-            uploadedAt: new Date(),
-            description: data.description || "",
-            isAnalyzing: false,
-          });
-
-          // Update the "thinking" message with the analysis result
-          updateMessage(thinkingMessageId, {
-            content: `Video analysis complete! Here's what I found:\n\n\`\`\`\n${data.description}\n\`\`\``,
-            status: 'completed',
-            timestamp: new Date(),
-          });
-          
-          // Explicitly set the new video as the active one
-          setActiveVideoId(data.file_id);
-
-          setUploadProgress(100);
-          setTimeout(() => {
-            setIsUploading(false);
-            setUploadProgress(0);
-          }, 500);
-        }, 1500); // 1.5 second delay
+          setIsUploading(false);
+          setUploadProgress(0);
+        }, 500);
       } else {
         const errorText = await response.text();
         console.error('Upload failed:', errorText);
@@ -133,10 +109,10 @@ const FileUploader = () => {
         onDrop={handleDrop}
         onClick={handleClick}
         className={`
-          border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
+          border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
           transition-all duration-200
           ${isDragging
-            ? 'border-blue-500 bg-blue-500/10'
+            ? 'border-purple-500 bg-purple-500/10'
             : 'border-gray-600 hover:border-gray-500'
           }
           ${isUploading ? 'pointer-events-none opacity-50' : ''}
@@ -145,7 +121,7 @@ const FileUploader = () => {
         <input
           ref={fileInputRef}
           type="file"
-          accept="video/*"
+          accept="audio/*"
           onChange={handleFileSelect}
           className="hidden"
         />
@@ -155,7 +131,7 @@ const FileUploader = () => {
             <p className="text-gray-300">Uploading...</p>
             <div className="w-full bg-gray-700 rounded-full h-2">
               <div
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                className="bg-purple-500 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${uploadProgress}%` }}
               />
             </div>
@@ -163,8 +139,8 @@ const FileUploader = () => {
           </div>
         ) : (
           <div>
-            <p className="text-gray-300 text-lg mb-2">📹 Drag & Drop Video Here</p>
-            <p className="text-sm text-gray-500">or click to browse</p>
+            <p className="text-gray-300 text-base mb-1">🎵 Drag & Drop Audio Here</p>
+            <p className="text-xs text-gray-500">or click to browse</p>
           </div>
         )}
       </div>
@@ -178,4 +154,5 @@ const FileUploader = () => {
   );
 };
 
-export default FileUploader;
+export default AudioUploader;
+

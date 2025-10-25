@@ -12,7 +12,7 @@ const MessageList = () => {
   const {
     activeVideoId, mediaBin, messages, addMessage,
     revertToPreviousVersion, redoLastAction,
-    setActiveVideoVersion, setPlaybackState
+    setActiveVideoVersion, setPlaybackState, addEditedMediaToLibrary
   } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -39,8 +39,6 @@ const MessageList = () => {
   }, [messages]);
 
   const formatTime = (date: Date) => new Date(date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-  const lastVideoMessageId = messages.slice().reverse().find(m => m.videoUrl)?.id;
 
   // Handlers to control the main player
   const handlePreviewPlay = (e: React.SyntheticEvent<HTMLVideoElement>, messageUrl: string) => {
@@ -126,29 +124,71 @@ const MessageList = () => {
                 {/* Message Content, Video, Buttons etc. go here, structured cleanly */}
                 <div className="prose prose-invert prose-sm max-w-none break-words whitespace-pre-wrap">{message.content}</div>
                 {message.videoUrl && (
-                  <div className="mt-3 rounded-lg overflow-hidden border border-gray-600 relative group">
-                    <video
-                      src={message.videoUrl}
-                      controls
-                      onPlay={(e) => handlePreviewPlay(e, message.videoUrl!)}
-                      onPause={handlePreviewPause}
-                      onSeeked={(e) => handlePreviewSeek(e, message.videoUrl!)}
-                      className="w-full"
-                    />
-                    {message.id === lastVideoMessageId && (activeVideo?.versionHistory?.length ?? 0) > 1 && (
-                      <button
-                        onClick={() => activeVideoId && revertToPreviousVersion(activeVideoId)}
-                        className="absolute top-2 right-2 bg-black/50 text-white px-3 py-1 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
-                      >
-                        ↩️ Revert
-                      </button>
-                    )}
-                  </div>
-                )}
-                {message.content.includes('reverted to the previous version') && (activeVideo?.redoHistory?.length ?? 0) > 0 && (
-                  <div className="mt-2">
-                    <button onClick={() => activeVideoId && redoLastAction(activeVideoId)} className="bg-gray-600 hover:bg-gray-500 text-white px-3 py-1 text-xs rounded transition-colors">
-                      ↪️ Redo
+                  <div className="mt-3 space-y-2">
+                    <div className="rounded-lg overflow-hidden border border-gray-600">
+                      {(() => {
+                        const urlLower = message.videoUrl!.toLowerCase();
+                        const isAudio = message.mediaType === 'audio' || 
+                                       urlLower.includes('.mp3') || 
+                                       urlLower.includes('.wav') || 
+                                       urlLower.includes('.m4a') || 
+                                       urlLower.includes('.aac') ||
+                                       urlLower.includes('extracted_audio');
+                        return isAudio ? (
+                          <audio
+                            src={message.videoUrl}
+                            controls
+                            className="w-full"
+                          />
+                        ) : (
+                        <video
+                          src={message.videoUrl}
+                          controls
+                          onPlay={(e) => handlePreviewPlay(e, message.videoUrl!)}
+                          onPause={handlePreviewPause}
+                          onSeeked={(e) => handlePreviewSeek(e, message.videoUrl!)}
+                          className="w-full"
+                        />
+                        );
+                      })()}
+                    </div>
+                    {/* Add to Media button */}
+                    <button
+                      onClick={() => {
+                        // Improved media type detection - check URL for audio extensions
+                        const urlLower = message.videoUrl!.toLowerCase();
+                        const isAudio = message.mediaType === 'audio' || 
+                                       urlLower.includes('.mp3') || 
+                                       urlLower.includes('.wav') || 
+                                       urlLower.includes('.m4a') || 
+                                       urlLower.includes('.aac') ||
+                                       urlLower.includes('extracted_audio');
+                        const mediaType = isAudio ? 'audio' : 'video';
+                        
+                        // Get filename from URL if not provided
+                        const urlFilename = message.videoUrl!.split('/').pop() || '';
+                        const filename = message.mediaFilename || urlFilename || `${mediaType}-${Date.now()}.${mediaType === 'audio' ? 'mp3' : 'mp4'}`;
+                        
+                        console.log('Adding to library:', { url: message.videoUrl, filename, mediaType, messageMediaType: message.mediaType, urlLower });
+                        addEditedMediaToLibrary(message.videoUrl!, filename, mediaType);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all transform hover:scale-[1.02]"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                      Add to {(() => {
+                        const urlLower = message.videoUrl!.toLowerCase();
+                        const isAudio = message.mediaType === 'audio' || 
+                                       urlLower.includes('.mp3') || 
+                                       urlLower.includes('.wav') || 
+                                       urlLower.includes('.m4a') || 
+                                       urlLower.includes('.aac') ||
+                                       urlLower.includes('extracted_audio');
+                        return isAudio ? 'Audio' : 'Videos';
+                      })()}
                     </button>
                   </div>
                 )}

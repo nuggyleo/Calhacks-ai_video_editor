@@ -28,7 +28,7 @@ const VideoPlayer = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
-    mediaBin, activeVideoId, addMediaFile,
+    mediaBin, activeVideoId, activeAudioId, addMediaFile,
     setIsUploading, isUploading,
     playbackState, setPlaybackState // <-- NEW: Get playback state and setter
   } = useAppStore();
@@ -48,9 +48,11 @@ const VideoPlayer = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Get the active video file from the mediaBin
+  // Get the active video or audio file from the mediaBin
   const activeVideo = mediaBin.find(f => f.id === activeVideoId);
+  const activeAudio = mediaBin.find(f => f.id === activeAudioId);
   const activeVideoUrl = activeVideo?.url;
+  const activeAudioUrl = activeAudio?.url;
 
   // Format time as MM:SS
   const formatTime = (seconds: number) => {
@@ -175,9 +177,10 @@ const VideoPlayer = () => {
           filename: result.filename,
           url: `http://localhost:8000${result.url}`,
           type: file.type,
+          mediaType: 'video', // VideoPlayer only handles video uploads
           uploadedAt: new Date(),
-          description: result.description || 'No description available.', // Ensure this is present
-          isAnalyzing: false, // Ensure this is present
+          description: result.description || 'No description available.',
+          isAnalyzing: false,
         });
 
         setTimeout(() => {
@@ -227,6 +230,53 @@ const VideoPlayer = () => {
   const handleUploadNewVideo = () => {
     fileInputRef.current?.click();
   };
+
+  // Show audio player if audio is selected
+  if (activeAudioUrl && !activeVideoUrl) {
+    return (
+      <div className="w-full bg-gray-900 flex flex-col rounded-lg overflow-hidden">
+        {/* Header toolbar */}
+        <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 text-sm">🎵 Now Playing:</span>
+            <span className="text-white font-medium truncate">{activeAudio?.filename || 'Unknown'}</span>
+          </div>
+        </div>
+        
+        {/* Audio display area */}
+        <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-purple-900/20 to-black p-8">
+          <div className="text-center space-y-6">
+            {/* Large audio icon */}
+            <div className="w-32 h-32 mx-auto bg-gradient-to-br from-purple-600/30 to-blue-600/30 rounded-full flex items-center justify-center border-2 border-purple-500/50">
+              <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
+                <path d="M9 18V5l12-2v13"/>
+                <circle cx="6" cy="18" r="3"/>
+                <circle cx="18" cy="16" r="3"/>
+              </svg>
+            </div>
+            
+            <div>
+              <h3 className="text-2xl font-light text-white mb-2">{activeAudio?.filename}</h3>
+              <p className="text-sm text-gray-500">Audio file</p>
+            </div>
+            
+            {/* HTML5 Audio Player */}
+            <div className="w-full max-w-md mx-auto">
+              <audio
+                src={activeAudioUrl}
+                controls
+                className="w-full"
+                style={{ 
+                  filter: 'invert(1) hue-rotate(180deg)',
+                  borderRadius: '8px'
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!activeVideoUrl) {
     return (

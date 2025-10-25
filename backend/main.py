@@ -1,6 +1,16 @@
 
 import sys
+import os
 from pathlib import Path
+
+# --- Set UTF-8 encoding for Windows console ---
+if sys.platform == 'win32':
+    try:
+        # Set console output encoding to UTF-8
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except:
+        pass  # Fallback for older Python versions
 
 # --- Pillow/MoviePy Compatibility Hotfix ---
 # Pillow 10.0.0+ removed the ANTIALIAS attribute, which moviepy still uses.
@@ -83,6 +93,7 @@ class EditCommandRequest(BaseModel):
     """Request model for video editing commands"""
     active_video_id: str
     media_bin: Dict[str, str]
+    media_file_info: Dict[str, Dict[str, str]] = {}  # NEW: filename and type info for each media file
     command: str
     chat_history: List[Dict[str, str]] = []
 
@@ -91,12 +102,12 @@ class EditCommandRequest(BaseModel):
 def read_root():
     return {"message": "Welcome to the AI Video Editor Backend!"}
 
-@app.post("/api/upload", summary="Upload video file", description="Uploads a video file and returns its metadata.")
-async def upload_video(file: UploadFile = File(...)):
-    """Upload a video file and return its analysis"""
+@app.post("/api/upload", summary="Upload media file", description="Uploads a video or audio file and returns its metadata.")
+async def upload_media(file: UploadFile = File(...)):
+    """Upload a video or audio file and return its analysis"""
     try:
         file_id = str(uuid.uuid4())
-        file_extension = Path(file.filename or "video.mp4").suffix
+        file_extension = Path(file.filename or "media").suffix
         safe_filename = f"{file_id}{file_extension}"
         file_path = UPLOAD_DIR / safe_filename
         
@@ -107,10 +118,15 @@ async def upload_video(file: UploadFile = File(...)):
         
         print(f"File uploaded: {safe_filename} ({len(content)} bytes)")
         
-        # Generate analysis with ffprobe
-        print(f"Generating basic video metadata for: {file_path}")
-        description = get_video_analysis(str(file_path))
-        print("Basic metadata generated")
+        # Generate analysis for video files only
+        description = ""
+        if file.content_type and file.content_type.startswith('video/'):
+            print(f"Generating basic video metadata for: {file_path}")
+            description = get_video_analysis(str(file_path))
+            print("Basic metadata generated")
+        elif file.content_type and file.content_type.startswith('audio/'):
+            print(f"Audio file uploaded: {file_path}")
+            description = f"Audio file: {file.filename}"
         
         return {
             "file_id": file_id,
@@ -209,6 +225,7 @@ async def edit_video(request: EditCommandRequest):
             "messages": messages,
             "query": request.command,
             "media_bin": reconstructed_media_bin,
+            "media_file_info": request.media_file_info,  # NEW: Pass filename info to graph
             "active_video_id": request.active_video_id,
         }
         

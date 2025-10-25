@@ -2,6 +2,7 @@ import logging
 from langchain_core.tools import tool
 from moviepy.editor import (
     VideoFileClip,
+    AudioFileClip,
     TextClip,
     CompositeVideoClip,
     concatenate_videoclips,
@@ -24,11 +25,11 @@ OUTPUT_DIR = Path(__file__).parent.parent.parent / "outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
-def get_output_path(input_path: str, suffix: str) -> str:
+def get_output_path(input_path: str, suffix: str, extension: str = "mp4") -> str:
     """Creates a unique output path in the designated OUTPUT_DIR."""
     original_filename = Path(input_path).stem
     unique_id = uuid.uuid4().hex[:8]
-    new_filename = f"{original_filename}_{suffix}_{unique_id}.mp4"
+    new_filename = f"{original_filename}_{suffix}_{unique_id}.{extension}"
     return str(OUTPUT_DIR / new_filename)
 
 
@@ -123,6 +124,67 @@ def change_video_speed(active_video_id: str, media_bin: Dict[str, str], speed_fa
         final_clip.write_videofile(output_path, codec="libx264", logger='bar')
         
     logger.info(f"--- TOOL: change_video_speed finished ---")
+    return output_path
+
+@tool
+def extract_audio(active_video_id: str, media_bin: Dict[str, str]) -> str:
+    """
+    Extracts the audio track from a video and saves it as an MP3 file.
+    Returns the path to the extracted audio file.
+    """
+    logger.info(f"--- TOOL: extract_audio starting ---")
+    video_path = resolve_video_path(active_video_id, media_bin)
+    logger.info(f"Resolved video path: {video_path}")
+    
+    with VideoFileClip(video_path) as clip:
+        if clip.audio is None:
+            raise ValueError("The video does not have an audio track.")
+        
+        output_path = get_output_path(video_path, "extracted_audio", extension="mp3")
+        
+        logger.info(f"Writing extracted audio to: {output_path}")
+        clip.audio.write_audiofile(output_path, logger='bar')
+        
+    logger.info(f"--- TOOL: extract_audio finished ---")
+    return output_path
+
+@tool
+def add_audio_to_video(video_id: str, audio_id: str, media_bin: Dict[str, str]) -> str:
+    """
+    Replaces or adds an audio track to a video. The audio can be from an audio file in the media bin.
+    
+    Args:
+        video_id: The ID of the video to add audio to.
+        audio_id: The ID of the audio file in the media bin.
+        media_bin: Dictionary mapping media IDs to file paths.
+    
+    Returns:
+        Path to the new video file with the audio track.
+    """
+    logger.info(f"--- TOOL: add_audio_to_video starting ---")
+    
+    if video_id not in media_bin:
+        raise ValueError(f"Video ID '{video_id}' not found in the media bin.")
+    if audio_id not in media_bin:
+        raise ValueError(f"Audio ID '{audio_id}' not found in the media bin.")
+    
+    video_path = media_bin[video_id]
+    audio_path = media_bin[audio_id]
+    
+    logger.info(f"Video path: {video_path}")
+    logger.info(f"Audio path: {audio_path}")
+    
+    with VideoFileClip(video_path) as video_clip:
+        with AudioFileClip(audio_path) as audio_clip:
+            # Set the audio of the video clip
+            final_clip = video_clip.set_audio(audio_clip)
+            
+            output_path = get_output_path(video_path, "with_audio")
+            
+            logger.info(f"Writing video with new audio to: {output_path}")
+            final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", logger='bar')
+    
+    logger.info(f"--- TOOL: add_audio_to_video finished ---")
     return output_path
 
 @tool

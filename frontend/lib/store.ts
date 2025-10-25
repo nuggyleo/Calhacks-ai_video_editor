@@ -8,6 +8,7 @@ export interface MediaFile {
   filename: string;
   url: string;
   type: string;
+  mediaType: 'video' | 'audio'; // NEW: Distinguish between video and audio files
   uploadedAt: Date;
   description: string;
   isAnalyzing: boolean;
@@ -21,17 +22,26 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   status?: 'pending' | 'completed' | 'error';
-  videoUrl?: string; // Add optional video URL
+  videoUrl?: string; // Optional video/audio URL for editing results
+  mediaType?: 'video' | 'audio'; // Type of media result
+  mediaFilename?: string; // Filename for the result
 }
 
 interface AppState {
   // Media files
   mediaBin: MediaFile[];
   activeVideoId: string | null;
+  activeAudioId: string | null;
 
   // Upload state
   isUploading: boolean;
   uploadProgress: number;
+
+  // Playback state
+  playbackState: {
+    isPlaying: boolean;
+    currentTime: number;
+  };
 
   // Chat/Messages
   messages: ChatMessage[];
@@ -45,6 +55,7 @@ interface AppState {
   // Actions
   addMediaFile: (file: Omit<MediaFile, 'versionHistory' | 'redoHistory'>) => void;
   setActiveVideoId: (id: string) => void;
+  setActiveAudioId: (id: string) => void;
   revertToPreviousVersion: (videoId: string) => void;
   redoLastAction: (videoId: string) => void;
   deleteMediaFile: (id: string) => void;
@@ -53,6 +64,7 @@ interface AppState {
   addMessage: (message: ChatMessage) => void;
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
   handleSuccessfulEdit: (videoId: string, newUrl: string, messageId: string, messageContent: string) => void;
+  addEditedMediaToLibrary: (url: string, filename: string, mediaType: 'video' | 'audio') => void;
   renameMediaFile: (id: string, newFilename: string) => void;
   updateMediaFileDescription: (id: string, description: string) => void;
   setPlaybackState: (updates: Partial<AppState['playbackState']>) => void;
@@ -66,10 +78,12 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   mediaBin: [],
   activeVideoId: null,
+  activeAudioId: null,
   isUploading: false,
   uploadProgress: 0,
   playbackState: { isPlaying: false, currentTime: 0 },
   messages: [],
+  currentThreadId: null,
   isThinking: false,
   authStatus: 'loading',
   isAuthenticated: false,
@@ -91,6 +105,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setActiveVideoId: (id: string) =>
     set({ activeVideoId: id }),
+
+  setActiveAudioId: (id: string) =>
+    set({ activeAudioId: id }),
 
   revertToPreviousVersion: (videoId) => set((state) => {
     const file = state.mediaBin.find(f => f.id === videoId);
@@ -187,16 +204,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   handleSuccessfulEdit: (videoId, newUrl, messageId, messageContent) => set(state => {
-    // 1. Update the media bin with the new URL and version history
-    const newMediaBin = state.mediaBin.map(file => {
-      if (file.id === videoId) {
-        // A new edit clears the redo history
-        return { ...file, url: newUrl, versionHistory: [...file.versionHistory, newUrl], redoHistory: [] };
-      }
-      return file;
-    });
-
-    // 2. Update the assistant's message with the final content and the new video URL
+    // Update the assistant's message with the final content and the new video URL
+    // NO LONGER updating mediaBin automatically - user must click "Add to Media" button
     const newMessages = state.messages.map(msg => {
       if (msg.id === messageId) {
         return {
@@ -210,10 +219,29 @@ export const useAppStore = create<AppState>((set, get) => ({
       return msg;
     });
 
-    // 3. Return the new state in a single, atomic update
     return {
-      mediaBin: newMediaBin,
       messages: newMessages,
+    };
+  }),
+
+  addEditedMediaToLibrary: (url, filename, mediaType) => set(state => {
+    console.log('addEditedMediaToLibrary called with:', { url, filename, mediaType });
+    const newFile: MediaFile = {
+      id: `edited-${Date.now()}`,
+      filename: filename,
+      url: url,
+      type: mediaType === 'video' ? 'video/mp4' : 'audio/mp3',
+      mediaType: mediaType,
+      uploadedAt: new Date(),
+      description: `Edited ${mediaType}`,
+      isAnalyzing: false,
+      versionHistory: [url],
+      redoHistory: [],
+    };
+    console.log('Created new file:', newFile);
+
+    return {
+      mediaBin: [...state.mediaBin, newFile],
     };
   }),
 
@@ -258,7 +286,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userEmail');
-    set({ isAuthenticated: false, user: null, token: null, authStatus: 'unauthenticated', currentVideoUrl: null, currentVideoId: null, mediaFiles: [], messages: [
+    set({ isAuthenticated: false, user: null, token: null, authStatus: 'unauthenticated', activeVideoId: null, mediaBin: [], messages: [
       {
         id: 'init',
         role: 'assistant',

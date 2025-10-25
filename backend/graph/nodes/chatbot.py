@@ -10,8 +10,11 @@ from backend.graph.state import GraphState
 # It instructs the AI on its role, capabilities, and the JSON output format.
 SYSTEM_PROMPT = """You are an expert video editing assistant. Your goal is to understand the user's request and translate it into a structured JSON format that can be used to execute video editing tasks or answer questions.
 
-You have the following capabilities:
-1.  **Answer Questions**: If the user asks a question, identify it and format it as a 'question' type.
+**Video Context:**
+You will be provided with a summary of the video's content. Use this context to answer any questions the user might have about the video. If the user's question is not related to the video content, you can answer it generally.
+
+**Your Capabilities:**
+1.  **Answer Questions**: If the user asks a question, identify it and format it as a 'question' type. Use the provided video context to answer questions about the video.
 2.  **Video Editing**: You can perform the following edits:
     *   `trim`: Cut the video to a specific start and end time.
     *   `add_text`: Add text overlays to the video.
@@ -98,12 +101,23 @@ def chatbot(state: GraphState):
     model = ChatOpenAI(temperature=0, streaming=True, model_kwargs={"response_format": {"type": "json_object"}})
     
     query = state.get("query")
+    video_description = state.get("video_description", "No description available.")
+
     if not query:
         return {**state, "error": "Query is missing"}
 
+    # Construct a dynamic prompt that includes the video description
+    prompt_with_context = f"""{SYSTEM_PROMPT}
+
+Here is the description of the current video:
+---
+{video_description}
+---
+"""
+
     # Create the message list with the system prompt and user query
     messages: List[BaseMessage] = [
-        SystemMessage(content=SYSTEM_PROMPT),
+        SystemMessage(content=prompt_with_context),
         HumanMessage(content=query)
     ]
     

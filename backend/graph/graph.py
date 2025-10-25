@@ -8,6 +8,7 @@ from backend.graph.nodes.query_parser import query_parser
 from backend.graph.nodes.answer_question import answer_question
 from backend.graph.nodes.video_parser import video_parser
 from backend.graph.nodes.dispatch_tasks import dispatch_tasks
+from backend.graph.nodes.execute_edit import execute_edit
 
 def entry_point_router(state: GraphState):
     """
@@ -34,6 +35,7 @@ workflow.add_node("query_parser", query_parser)
 workflow.add_node("answer_question", answer_question)
 workflow.add_node("video_parser", video_parser)
 workflow.add_node("dispatch_tasks", dispatch_tasks)
+workflow.add_node("execute_edit", execute_edit)
 
 
 # Set the entry point router
@@ -58,14 +60,13 @@ workflow.add_conditional_edges(
     query_router,
     {
         "answer_question": "answer_question",
-        "dispatch_tasks": "dispatch_tasks",
+        "dispatch_tasks": "execute_edit",
     },
 )
 
-
 # Add edges from the other nodes to the end
 workflow.add_edge("answer_question", END)
-workflow.add_edge("dispatch_tasks", END)
+workflow.add_edge("execute_edit", END)
 
 # Compile the graph
 app = workflow.compile()

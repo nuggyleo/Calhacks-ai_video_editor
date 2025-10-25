@@ -235,9 +235,9 @@ const VideoPlayer = () => {
   }
   
   return (
-    <div className="flex-grow bg-gray-900 flex flex-col rounded-lg overflow-hidden">
+    <div className="w-full bg-gray-900 flex flex-col rounded-lg overflow-hidden">
       {/* Header toolbar */}
-      <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex items-center justify-between">
+      <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-gray-400 text-sm">📹 Now Editing:</span>
           <span className="text-white font-medium truncate">{currentVideo?.filename || 'Unknown'}</span>
@@ -255,19 +255,19 @@ const VideoPlayer = () => {
       </div>
       
       {/* Video display area */}
-      <div className="flex-grow flex items-center justify-center bg-black">
+      <div className="w-full flex items-center justify-center bg-black p-4">
         <video
           ref={videoRef}
           src={currentVideoUrl}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onEnded={handleEnded}
-          className="max-w-full max-h-full"
+          className="max-w-full w-auto h-auto rounded"
         />
       </div>
       
       {/* Custom controls */}
-      <div className="bg-gray-800 p-4 space-y-3">
+      <div className="bg-gray-800 p-4 space-y-3 flex-shrink-0">
         {/* Progress bar */}
         <div
           ref={progressBarRef}

@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 
 const MessageList = () => {
-  const { currentVideoId, mediaFiles, messages, getMessagesByVideoId, addMessage } = useAppStore();
+  const { currentVideoId, mediaFiles, messages, getMessagesByVideoId, addMessage, revertToPreviousVersion } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Get current video name
@@ -51,6 +51,9 @@ const MessageList = () => {
       second: '2-digit'
     });
   };
+
+  // Find the ID of the last message that has a video URL
+  const lastVideoMessageId = videoMessages.slice().reverse().find(m => m.videoUrl)?.id;
 
   return (
     <div className="flex-grow mb-4 p-4 bg-gray-900 rounded-lg flex flex-col overflow-hidden">
@@ -127,12 +130,21 @@ const MessageList = () => {
 
                     {/* Display video if URL exists */}
                     {message.videoUrl && (
-                      <div className="mt-3 rounded-lg overflow-hidden border border-gray-600">
+                      <div className="mt-3 rounded-lg overflow-hidden border border-gray-600 relative group">
                         <video
                           src={message.videoUrl}
                           controls
                           className="w-full"
                         />
+                        {/* Show Revert button only on the last video message */}
+                        {message.id === lastVideoMessageId && (currentVideo?.versionHistory?.length ?? 0) > 1 && (
+                          <button
+                            onClick={() => currentVideoId && revertToPreviousVersion(currentVideoId)}
+                            className="absolute top-2 right-2 bg-black/50 text-white px-3 py-1 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                          >
+                            ↩️ Revert
+                          </button>
+                        )}
                       </div>
                     )}
                     

@@ -69,8 +69,8 @@ const CommandInput = () => {
         videoUrl: fullUrl, // Attach the new video URL to the message
       });
       
-      if (fullUrl) {
-        setCurrentVideoUrl(fullUrl);
+      if (fullUrl && currentVideoId) {
+        setCurrentVideoUrl(fullUrl, currentVideoId);
       }
       
     } catch (error) {

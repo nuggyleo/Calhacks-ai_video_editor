@@ -43,8 +43,6 @@ def master_router(state: GraphState):
     print(f"--- WARNING: Unknown tool choice '{tool_choice}'. Defaulting to answer_question path. ---")
     return "answer_question"
 
-
-# Define the graph
 workflow = StateGraph(GraphState)
 
 # Add the nodes

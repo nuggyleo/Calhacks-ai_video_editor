@@ -11,6 +11,7 @@ export interface MediaFile {
   uploadedAt: Date;
   description: string;
   isAnalyzing: boolean;
+  versionHistory: string[]; // To track edit history for undo
 }
 
 export interface ChatMessage {
@@ -35,10 +36,12 @@ interface AppState {
   
   // Chat/Messages
   messages: ChatMessage[];
+  currentThreadId: string | null;
   
   // Actions
-  addMediaFile: (file: MediaFile) => void;
+  addMediaFile: (file: Omit<MediaFile, 'versionHistory'>) => void;
   setCurrentVideo: (url: string, id: string) => void;
+  revertToPreviousVersion: (videoId: string) => void;
   deleteMediaFile: (id: string) => void;
   setUploadProgress: (progress: number) => void;
   setIsUploading: (isUploading: boolean) => void;
@@ -48,7 +51,7 @@ interface AppState {
   deleteMessagesForVideo: (videoId: string) => void;
   renameMediaFile: (id: string, newFilename: string) => void;
   updateMediaFileDescription: (id: string, description: string) => void;
-  setCurrentVideoUrl: (url: string) => void;
+  setCurrentVideoUrl: (url: string, videoId: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -58,17 +61,61 @@ export const useAppStore = create<AppState>((set, get) => ({
   isUploading: false,
   uploadProgress: 0,
   messages: [],
+  currentThreadId: null,
   
-  addMediaFile: (file: MediaFile) => 
-    set((state) => ({ 
-      mediaFiles: [...state.mediaFiles, file],
-      currentVideoUrl: file.url,
-      currentVideoId: file.id
-    })),
+  addMediaFile: (file) => 
+    set((state) => {
+      const newFile: MediaFile = {
+        ...file,
+        versionHistory: [file.url] // Start history with the original URL
+      };
+      return { 
+        mediaFiles: [...state.mediaFiles, newFile],
+        currentVideoUrl: newFile.url,
+        currentVideoId: newFile.id
+      };
+    }),
     
   setCurrentVideo: (url: string, id: string) => 
-    set({ currentVideoUrl: url, currentVideoId: id }),
+    set((state) => {
+      const file = state.mediaFiles.find(f => f.id === id);
+      const history = file ? [...file.versionHistory, url] : [url];
+      return {
+        currentVideoUrl: url, 
+        currentVideoId: id,
+        mediaFiles: state.mediaFiles.map(f => 
+          f.id === id ? { ...f, versionHistory: history } : f
+        )
+      };
+    }),
   
+  revertToPreviousVersion: (videoId) => set((state) => {
+    const file = state.mediaFiles.find(f => f.id === videoId);
+    if (!file || file.versionHistory.length <= 1) return state; // Cannot revert original
+
+    const newHistory = file.versionHistory.slice(0, -1);
+    const previousUrl = newHistory[newHistory.length - 1];
+
+    const newMediaFiles = state.mediaFiles.map(f => 
+      f.id === videoId ? { ...f, versionHistory: newHistory } : f
+    );
+
+    const revertMessage: ChatMessage = {
+      id: `revert-${Date.now()}`,
+      videoId: videoId,
+      role: 'assistant',
+      content: '↩️ Video has been reverted to the previous version.',
+      timestamp: new Date(),
+      status: 'completed',
+    };
+
+    return {
+      mediaFiles: newMediaFiles,
+      currentVideoUrl: previousUrl,
+      messages: [...state.messages, revertMessage],
+    };
+  }),
+
   deleteMediaFile: (id: string) =>
     set((state) => {
       const updatedFiles = state.mediaFiles.filter(f => f.id !== id);
@@ -123,5 +170,17 @@ export const useAppStore = create<AppState>((set, get) => ({
         file.id === id ? { ...file, description: description } : file
       )
     })),
-  setCurrentVideoUrl: (url) => set({ currentVideoUrl: url }),
+  setCurrentVideoUrl: (url, videoId) => set(state => {
+    const newMediaFiles = state.mediaFiles.map(file => {
+      if (file.id === videoId) {
+        // Add the new URL to this video's history
+        return { ...file, versionHistory: [...file.versionHistory, url] };
+      }
+      return file;
+    });
+    return {
+      currentVideoUrl: url,
+      mediaFiles: newMediaFiles,
+    };
+  }),
 }));

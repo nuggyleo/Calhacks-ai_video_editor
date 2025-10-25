@@ -47,6 +47,7 @@ interface AppState {
   deleteMessagesForVideo: (videoId: string) => void;
   renameMediaFile: (id: string, newFilename: string) => void;
   updateMediaFileDescription: (id: string, description: string) => void;
+  setCurrentVideoUrl: (url: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -121,4 +122,5 @@ export const useAppStore = create<AppState>((set, get) => ({
         file.id === id ? { ...file, description: description } : file
       )
     })),
+  setCurrentVideoUrl: (url) => set({ currentVideoUrl: url }),
 }));

@@ -48,11 +48,20 @@ def execute_edit(state: GraphState):
                 start_time = action.get("start_time")
                 end_time = action.get("end_time")
 
-                # If the user says "cut the first 3 seconds", start_time would be 3 and end_time would be None.
-                # If they say "cut the last 3 seconds", end_time would be clip.duration - 3 and start_time would be None.
+                # Sanitize inputs from the LLM. It might send 'end' as a string.
+                if end_time == 'end' or end_time is None:
+                    end_time = clip.duration
                 
-                final_start = start_time if start_time is not None else 0
-                final_end = end_time if end_time is not None else clip.duration
+                # Default start time to the beginning if not provided.
+                if start_time is None:
+                    start_time = 0
+
+                # Ensure times are numbers before proceeding
+                try:
+                    final_start = float(start_time)
+                    final_end = float(end_time)
+                except (ValueError, TypeError):
+                    raise ValueError("Invalid start or end time provided by the model.")
 
                 clip = clip.subclip(final_start, final_end)
                 

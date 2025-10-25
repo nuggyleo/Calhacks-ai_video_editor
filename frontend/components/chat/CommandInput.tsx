@@ -10,7 +10,7 @@ import { useAppStore } from '@/lib/store';
 const CommandInput = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { currentVideoId, currentVideoUrl, mediaFiles, addMessage, updateMessage } = useAppStore();
+  const { currentVideoId, currentVideoUrl, mediaFiles, addMessage, updateMessage, setCurrentVideoUrl } = useAppStore();
 
   const handleSend = async () => {
     if (!input.trim() || !currentVideoId || !currentVideoUrl) return;
@@ -64,6 +64,11 @@ const CommandInput = () => {
         status: 'completed',
         timestamp: new Date(),
       });
+      
+      // If the backend sent back a new video URL, update the player
+      if (result.output_url) {
+        setCurrentVideoUrl(result.output_url);
+      }
       
     } catch (error) {
       console.error('Failed to send command:', error);

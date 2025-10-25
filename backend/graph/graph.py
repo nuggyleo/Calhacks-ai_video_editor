@@ -10,9 +10,22 @@ from backend.graph.nodes.execute_edit import execute_edit
 from backend.graph.nodes.chatbot import chatbot
 from backend.graph.nodes.vision_analyzer import vision_analyzer_node
 
+
+def should_analyze_vision(state: GraphState):
+    """
+    Determines whether to run the vision analysis based on the presence of a video description.
+    """
+    if state.get("video_description"):
+        print("--- SKIPPING VISION ANALYSIS (DESCRIPTION ALREADY EXISTS) ---")
+        return "query_parser"
+    else:
+        print("--- ROUTING TO VISION ANALYSIS (NO DESCRIPTION) ---")
+        return "vision_analyzer"
+
+
 def query_router(state: GraphState):
     """
-    Routes to the next node based on the 'next_node' attribute in the state.
+    Routes to the next node based on the 'type' field from the chatbot's JSON output.
     """
     next_node = state.get("next_node")
     if next_node == "continue_chat":
@@ -35,13 +48,20 @@ workflow.add_node("vision_analyzer", vision_analyzer_node)
 # Set the entry point
 workflow.set_entry_point("chatbot")
 
-# After the chatbot gets the initial query, analyze the video's content.
-workflow.add_edge("chatbot", "vision_analyzer")
+# After the chatbot, decide whether to analyze the video content.
+workflow.add_conditional_edges(
+    "chatbot",
+    should_analyze_vision,
+    {
+        "vision_analyzer": "vision_analyzer",
+        "query_parser": "query_parser",
+    },
+)
 
 # After analyzing, the enriched state goes to the query parser.
 workflow.add_edge("vision_analyzer", "query_parser")
 
-# Add the conditional edge from the query parser
+# From the query parser, route to the appropriate tool.
 workflow.add_conditional_edges(
     "query_parser",
     query_router,
@@ -52,9 +72,9 @@ workflow.add_conditional_edges(
     },
 )
 
-# Add edges from the other nodes to the end
-workflow.add_edge("answer_question", END)
-workflow.add_edge("execute_edit", END)
+# After a tool is used, the conversation loops back to the chatbot.
+workflow.add_edge("answer_question", "chatbot")
+workflow.add_edge("execute_edit", "chatbot")
 
 # Compile the graph
 app = workflow.compile()

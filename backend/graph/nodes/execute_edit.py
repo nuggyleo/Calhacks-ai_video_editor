@@ -1,130 +1,105 @@
 import os
-import json
-from typing import List, Dict, Any
 from pathlib import Path
+from typing import List
+
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
+from langchain_openai import ChatOpenAI
+from langgraph.graph import StateGraph, END
+from langgraph.prebuilt import ToolNode
 
 from backend.graph.state import GraphState
-from backend.video_engine.editing.clips import split_video, concatenate_videos
-from backend.video_engine.editing.effects import apply_filter, add_subtitle
-from backend.video_engine.editing.audio import set_audio
-from backend.video_engine.editing.export import export_video
+from backend.video_engine.tools import (
+    add_text_to_video,
+    apply_filter_to_video,
+    change_video_speed,
+    trim_video,
+)
 
-from moviepy.editor import VideoFileClip
+# 1. Define the tools for the agent
+tools = [
+    TavilySearchResults(max_results=3),
+    trim_video,
+    add_text_to_video,
+    apply_filter_to_video,
+    change_video_speed,
+]
+tool_node = ToolNode(tools)
 
+# 2. Define the agent model
+model = ChatOpenAI(temperature=0, streaming=True).bind_tools(tools)
+
+
+# 3. Define the nodes for the agent's internal graph
+def agent_node(state: GraphState):
+    """The agent's "brain" - decides what action to take."""
+    print("---AGENT: Deciding next action---")
+    response = model.invoke(state["messages"])
+    return {"messages": [response]}
+
+def should_continue_router(state: GraphState):
+    """Router to decide if the agent should continue or is finished."""
+    if state["messages"][-1].tool_calls:
+        return "tool_node"
+    else:
+        return END
+
+# 4. Wire up the agent's internal graph
+agent_workflow = StateGraph(GraphState)
+agent_workflow.add_node("agent", agent_node)
+agent_workflow.add_node("tool_node", tool_node) # Using the official ToolNode
+agent_workflow.set_entry_point("agent")
+agent_workflow.add_conditional_edges(
+    "agent",
+    should_continue_router,
+)
+agent_workflow.add_edge("tool_node", "agent")
+agent_app = agent_workflow.compile()
+
+
+# 5. Define the main entry point for the graph node
 def execute_edit(state: GraphState):
     """
-    Executes the video edit operations based on the parsed query.
-    
-    Args:
-        state: The current graph state containing the parsed edit actions.
-        
-    Returns:
-        The updated graph state with execution results.
+    Main entry point for the video editing agent.
     """
-    
+    print("---VIDEO EDITING AGENT: Starting---")
+    parsed_query = state.get("parsed_query", {})
+    edit_actions = parsed_query.get("data", [])
+
+    if not edit_actions:
+        return {**state, "error": "No edit actions provided."}
+
+    user_request = f"Perform the following video edits: {str(edit_actions)}"
     video_path = state.get("video_path")
-    parsed_query = state.get("parsed_query")
+    full_request = f"""User Request: "{user_request}"
+    Initial video file path: "{video_path}"
 
-    if not video_path or not parsed_query:
-        return {**state, "error": "Missing video path or parsed query."}
+    Your task is to execute a plan to fulfill this request.
+    Use the initial video path for your first tool call.
+    For any subsequent tool calls, you MUST use the new video path returned by the previous tool.
+    When the request is fully complete, your final response should be a short confirmation message.
+    """
+
+    initial_agent_state = {
+        "messages": [HumanMessage(content=full_request)],
+        "video_path": video_path
+    }
     
-    try:
-        # The 'data' from the parsed query should be a list of edit actions
-        edit_data = parsed_query.get("data")
-        
-        # Ensure edit_data is a list
-        if not isinstance(edit_data, list):
-            edit_data = [edit_data]
-        
-        # Start with the original video
-        clip = VideoFileClip(video_path)
-        
-        # Process each edit action in sequence
-        for action in edit_data:
-            action_type = action.get("action")
-            
-            if action_type == "trim" or action_type == "cut":
-                # Trim the video from start_time to end_time
-                start_time = action.get("start_time")
-                end_time = action.get("end_time")
-
-                # Sanitize inputs from the LLM. It might send 'end' as a string.
-                if end_time == 'end' or end_time is None:
-                    end_time = clip.duration
-                
-                # Default start time to the beginning if not provided.
-                if start_time is None:
-                    start_time = 0
-
-                # Ensure times are numbers before proceeding
-                try:
-                    final_start = float(start_time)
-                    final_end = float(end_time)
-                except (ValueError, TypeError):
-                    raise ValueError("Invalid start or end time provided by the model.")
-
-                clip = clip.subclip(final_start, final_end)
-                
-                print(f"✅ Trimmed video from {final_start}s to {final_end}s")
-            
-            elif action_type == "add_text":
-                # Add text/subtitle to the video
-                text = action.get("description", "")
-                start_time = action.get("start_time", 0)
-                duration = action.get("duration", 3)
-                clip = add_subtitle(clip, text, start_time, duration)
-                print(f"✅ Added text: '{text}' at {start_time}s")
-            
-            elif action_type == "add_filter":
-                # Apply a filter to the video
-                filter_name = action.get("description", "")
-                clip = apply_filter(clip, "invert_colors")
-                print(f"✅ Applied filter: invert_colors")
-            
-            elif action_type == "speed_up":
-                # Speed up the video
-                speed_factor = action.get("speed_factor", 1.5)
-                clip = clip.speedx(speed_factor)
-                print(f"✅ Sped up video by {speed_factor}x")
-            
-            elif action_type == "slow_down":
-                # Slow down the video
-                speed_factor = action.get("speed_factor", 0.5)
-                clip = clip.speedx(speed_factor)
-                print(f"✅ Slowed down video by {1/speed_factor}x")
-            
-            elif action_type == "set_audio":
-                # Replace audio with a new audio file
-                audio_path = action.get("audio_path", "")
-                clip = set_audio(clip, audio_path)
-                print(f"✅ Set audio to: {audio_path}")
-        
-        # Define the output directory relative to the project root
-        # Assumes this script is in backend/graph/nodes
-        output_dir = Path(__file__).parent.parent.parent.parent / "outputs"
-        output_dir.mkdir(exist_ok=True, parents=True)
-
-        # Create a unique output path
-        original_filename = Path(video_path).name
-        output_path = str(output_dir / f"edited_{original_filename}")
-        
-        # Export the final edited video
-        export_video(clip, output_path)
-        
-        return {
-            "result": {
-                "status": "completed",
-                "message": f"Video edited successfully! You can find it at: {output_path}",
-                "output_path": output_path
-            }
-        }
+    # Invoke the agent. It will run until it hits the END state.
+    final_agent_state = agent_app.invoke(initial_agent_state)
     
-    except Exception as e:
-        return {
-            **state,
-            "error": str(e),
-            "result": {
-                "status": "error",
-                "message": f"An error occurred during video editing: {str(e)}"
-            }
-        }
+    # Extract the final video path from the message history
+    final_video_path = video_path # Default to original path
+    for message in reversed(final_agent_state["messages"]):
+        if isinstance(message, ToolMessage) and ".mp4" in str(message.content):
+            final_video_path = str(message.content)
+            break
+
+    return {
+        **state,
+        "result": {
+            "status": "completed",
+            "message": f"Video editing complete. Final version at: {final_video_path}",
+            "output_path": final_video_path,
+        },
+    }

@@ -11,34 +11,30 @@ from backend.graph.nodes.chatbot import chatbot
 from backend.graph.nodes.vision_analyzer import vision_analyzer_node
 
 
-def pre_analysis_router(state: GraphState):
+def combined_router(state: GraphState):
     """
-    Routes to the correct tool based on the chatbot's initial analysis,
-    bypassing vision analysis for direct edits.
+    This single, efficient router determines the next step after the chatbot.
+    It checks for direct edits first, then for contextual questions,
+    and only routes to vision analysis if absolutely necessary.
     """
     tool_choice = state.get("parsed_query", {}).get("tool_choice")
+
     if tool_choice == "execute_edit":
         print("--- ROUTING DIRECTLY TO EXECUTE EDIT ---")
         return "execute_edit"
+    
     elif tool_choice == "answer_question":
-        print("--- ROUTING TO CONTEXTUAL ANALYSIS ---")
-        return "should_analyze_vision"
+        print("--- ROUTING TO CONTEXTUAL ANALYSIS PATH ---")
+        if state.get("video_description"):
+            print("--- SKIPPING VISION ANALYSIS (DESCRIPTION ALREADY EXISTS) ---")
+            return "query_parser"
+        else:
+            print("--- ROUTING TO VISION ANALYSIS (NO DESCRIPTION) ---")
+            return "vision_analyzer"
     else:
         # Fallback or error handling
-        print(f"--- UNKNOWN TOOL CHOICE: {tool_choice} ---")
-        return "answer_question" # Or handle as an error
-
-
-def should_analyze_vision(state: GraphState):
-    """
-    Determines whether to run the vision analysis based on the presence of a video description.
-    """
-    if state.get("video_description"):
-        print("--- SKIPPING VISION ANALYSIS (DESCRIPTION ALREADY EXISTS) ---")
-        return "query_parser"
-    else:
-        print("--- ROUTING TO VISION ANALYSIS (NO DESCRIPTION) ---")
-        return "vision_analyzer"
+        print(f"--- UNKNOWN TOOL CHOICE: {tool_choice}, defaulting to answer_question ---")
+        return "answer_question"
 
 
 def query_router(state: GraphState):
@@ -66,38 +62,29 @@ workflow.add_node("vision_analyzer", vision_analyzer_node)
 # Set the entry point
 workflow.set_entry_point("chatbot")
 
-# After the chatbot, decide the primary tool path.
+# After the chatbot, use the combined router to decide the next step.
 workflow.add_conditional_edges(
     "chatbot",
-    pre_analysis_router,
+    combined_router,
     {
         "execute_edit": "execute_edit",
-        "should_analyze_vision": "should_analyze_vision",
-        "answer_question": "answer_question" # Fallback
-    }
-)
-
-# For contextual questions, decide whether to run vision analysis.
-workflow.add_conditional_edges(
-    "should_analyze_vision",
-    should_analyze_vision,
-    {
         "vision_analyzer": "vision_analyzer",
         "query_parser": "query_parser",
-    },
+        "answer_question": "answer_question" # Fallback
+    }
 )
 
 # After analyzing, the enriched state goes to the query parser.
 workflow.add_edge("vision_analyzer", "query_parser")
 
 # From the query parser, route to the appropriate tool.
+# This now only handles the path for answering questions.
 workflow.add_conditional_edges(
     "query_parser",
     query_router,
     {
         "answer_question": "answer_question",
-        "execute_edit": "execute_edit",
-        "continue_chat": "chatbot",
+        "execute_edit": "execute_edit", # Should not happen, but good to have a path
     },
 )
 

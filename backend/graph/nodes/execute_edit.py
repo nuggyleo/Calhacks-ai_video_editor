@@ -69,8 +69,8 @@ def execute_edit(state: GraphState):
             elif action_type == "add_filter":
                 # Apply a filter to the video
                 filter_name = action.get("description", "")
-                clip = apply_filter(clip, filter_name)
-                print(f"✅ Applied filter: {filter_name}")
+                clip = apply_filter(clip, "invert_colors")
+                print(f"✅ Applied filter: invert_colors")
             
             elif action_type == "speed_up":
                 # Speed up the video

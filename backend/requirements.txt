@@ -2,20 +2,19 @@
 # You can install them all by running `pip install -r requirements.txt`.
 
 # Web Framework
-fastapi
-uvicorn[standard]
+fastapi==0.120.0
+uvicorn[standard]==0.38.0
 
 # Video Processing
-ffmpeg-python
-moviepy
+ffmpeg-python==0.2.0
+moviepy==1.0.3
 
 # AI / NLP
-openai
-langchain
-langchain-openai
-langgraph
-# python-dotenv # To manage API keys
+openai==2.6.1
+langchain==1.0.2
+langgraph==1.0.1
+python-dotenv==1.1.1
 
 # Background Tasks
-celery
-redis
+celery==5.5.3
+redis==7.0.0

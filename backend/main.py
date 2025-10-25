@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.graph.graph import app as graph_app
+from backend.graph.nodes.video_parser import get_video_analysis
 
 
 app = FastAPI(
@@ -48,26 +49,8 @@ print(f"--- Using temporary directory for uploads: {UPLOAD_DIR} ---")
 UPLOAD_DIR.mkdir(exist_ok=True, parents=True)
 
 # FFmpeg path
-FFMPEG_PATH = r'C:\Program Files\JianyingPro\Apps\5.7.0.11527\ffmpeg.exe'
+FFMPEG_PATH = r'C:\\Program Files\\JianyingPro\\Apps\\5.7.0.11527\\ffmpeg.exe'
 
-def get_video_analysis_placeholder(filename: str) -> str:
-    """
-    Returns a detailed video analysis placeholder.
-    This is used for testing the frontend UI before real ffmpeg integration.
-    """
-    return f"""This video appears to be a professional recording with clear audio and visual content. 
-
-**Scene 1 - Opening (0:00-0:05):** The video begins with an introduction sequence, establishing the setting and context.
-
-**Scene 2 - Main Content (0:05-0:20):** The primary subject matter is presented with detailed explanations. Multiple visual elements support the narrative.
-
-**Scene 3 - Details (0:20-0:30):** Specific examples and close-up details are shown to illustrate key points.
-
-**Scene 4 - Conclusion (0:30-0:35):** The video concludes with a summary and call-to-action.
-
-**Overall Quality:** The video is well-produced with consistent lighting, good audio quality, and professional editing. Suitable for further editing and effects enhancement."""
-
-# Define request models
 class EditCommandRequest(BaseModel):
     """Request model for video editing commands"""
     video_id: str
@@ -96,9 +79,9 @@ async def upload_video(file: UploadFile = File(...)):
         
         print(f"File uploaded: {safe_filename} ({len(content)} bytes)")
         
-        # Generate analysis (placeholder for now - using real ffmpeg later)
+        # Generate analysis with ffprobe
         print(f"Generating video analysis for: {file_path}")
-        description = get_video_analysis_placeholder(file.filename or "video.mp4")
+        description = get_video_analysis(str(file_path))
         print("Video analysis generated")
         
         return {

@@ -39,15 +39,18 @@ const CommandInput = () => {
     setInput('');
 
     try {
+      // --- FIX: Get the latest state directly from the store ---
+      const { mediaBin: currentMediaBin, messages: currentMessages } = useAppStore.getState();
+
       // Create a simple dictionary for the backend from the mediaBin
       // Now includes filename information so AI can identify files by name
-      const mediaBinForApi = mediaBin.reduce((acc, file) => {
+      const mediaBinForApi = currentMediaBin.reduce((acc, file) => {
         acc[file.id] = file.url; // Keep URL for backward compatibility
         return acc;
       }, {} as Record<string, string>);
-      
+
       // Also send filename mapping for AI to understand user references
-      const mediaFileInfo = mediaBin.reduce((acc, file) => {
+      const mediaFileInfo = currentMediaBin.reduce((acc, file) => {
         acc[file.id] = {
           filename: file.filename,
           type: file.mediaType || 'video'
@@ -56,15 +59,22 @@ const CommandInput = () => {
       }, {} as Record<string, any>);
 
       // --- NEW: Prepare the full chat history for the backend ---
-      const chatHistoryForApi = messages.map(msg => ({
+      const chatHistoryForApi = currentMessages.map(msg => ({
         role: msg.role,
         content: msg.content,
       }));
 
       // --- FIX: Get the active video's description ---
-      const activeVideo = mediaBin.find(f => f.id === activeVideoId);
+      const activeVideo = currentMediaBin.find(f => f.id === activeVideoId);
       const videoDescription = activeVideo?.description || '';
       // --- End Fix ---
+
+      console.log("--- Sending to backend ---");
+      console.log("Active Video ID:", activeVideoId);
+      console.log("Media Bin for API:", mediaBinForApi);
+      console.log("Media File Info:", mediaFileInfo);
+      console.log("Command:", input.trim());
+      console.log("--------------------------");
 
       const response = await fetch('http://localhost:8000/api/edit', {
         method: 'POST',

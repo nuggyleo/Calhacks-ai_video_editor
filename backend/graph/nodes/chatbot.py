@@ -40,6 +40,8 @@ def chatbot(state: GraphState):
     SYSTEM_PROMPT = f"""You are an expert AI video editing assistant. You are working in a multi-media environment with both videos and audio files.
 Your first task is to analyze the user's query and the current project state to determine the most efficient action. The project state includes a `media_bin` (a dictionary of available videos and audio files) and an `active_video_id` (the video the user is currently focused on).
 
+**CRITICAL RULE: You MUST use the exact media IDs (e.g., "38cc70b5-81f5-4b97-8952-e25bf807d7ef") provided in the "Current project state" section below. Do NOT use filenames or make up your own IDs.**
+
 You must classify the query into one of two tool choices: "execute_edit" or "answer_question".
 
 1.  **`tool_choice`: "execute_edit"**
@@ -55,6 +57,7 @@ You must classify the query into one of two tool choices: "execute_edit" or "ans
     - Example 5: "speed up the video by 2x" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "change_speed", "video_id": "{active_video_id}", "speed_factor": 2.0}}]}}`
     - Example 6: "trim from 00:00 to 00:03 and then add a filter" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "trim", "video_id": "{active_video_id}", "start_time": 0, "end_time": 3}}, {{"action": "apply_filter", "video_id": "{{{{result_of_step_1}}}}", "filter_description": "add a filter"}}]}}`
     - Example 7: "add a green filter, then trim till 00:03" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "apply_filter", "video_id": "{active_video_id}", "filter_description": "add a green filter"}}, {{"action": "trim", "video_id": "{{{{result_of_step_1}}}}", "start_time": 0, "end_time": 3}}]}}`
+    - Example 8: "extract audio from 'video1.mp4' and add it to 'video2.mp4'" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "extract_audio", "video_id": "id_for_video1.mp4"}}, {{"action": "add_audio_to_video", "video_id": "id_for_video2.mp4", "audio_id": "{{{{result_of_step_1}}}}"}}]}}`
 
 
 2.  **`tool_choice`: "answer_question"**

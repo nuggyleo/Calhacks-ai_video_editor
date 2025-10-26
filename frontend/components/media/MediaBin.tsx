@@ -10,7 +10,7 @@ const MediaBin = () => {
     mediaBin, activeVideoId, setActiveVideoId,
     deleteMediaFile, renameMediaFile,
     addMediaFile, setIsUploading, setUploadProgress
- , saveVideo } = useAppStore();
+    , saveVideo } = useAppStore();
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -109,7 +109,7 @@ const MediaBin = () => {
     setEditingId(null);
     setEditingName('');
   };
-  
+
   const handleSaveVideo = async (file: typeof videoFiles[0], e: React.MouseEvent) => {
     e.stopPropagation();
     setSavingId(file.id);
@@ -193,13 +193,13 @@ const MediaBin = () => {
                     >
                       {savingId === file.id ? (
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
-                          <polyline points="20 6 9 17 4 12"/>
+                          <polyline points="20 6 9 17 4 12" />
                         </svg>
                       ) : (
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
-                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                          <polyline points="17 21 17 13 7 13 7 21"/>
-                          <polyline points="7 3 7 8 15 8"/>
+                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                          <polyline points="17 21 17 13 7 13 7 21" />
+                          <polyline points="7 3 7 8 15 8" />
                         </svg>
                       )}
                     </button>

@@ -278,7 +278,8 @@ Example: [{{"action": "trim", "video_id": "original_video_id", "start_time": 0, 
             'concatenate': 'concatenate_videos',
             'extract_audio': 'extract_audio',
             'add_audio_to_video': 'add_audio_to_video',
-            'add_audio': 'add_audio_to_video'  # Support both
+            'add_audio': 'add_audio_to_video',  # Support both
+            'merge_audio': 'add_audio_to_video' # Add mapping for merge_audio
         }
         
         tool_name = action_to_tool.get(action_name, action_name)
@@ -339,7 +340,7 @@ Example: [{{"action": "trim", "video_id": "original_video_id", "start_time": 0, 
                     active_video_id=current_video_id,
                     media_bin=temp_media_bin
                 )
-            elif action_name in ['add_audio_to_video', 'add_audio']:
+            elif action_name in ['add_audio_to_video', 'add_audio', 'merge_audio']:
                 result_path = video_tools.add_audio_to_video.func(
                     video_id=tool_args['video_id'],
                     audio_id=tool_args['audio_id'],
@@ -359,19 +360,32 @@ Example: [{{"action": "trim", "video_id": "original_video_id", "start_time": 0, 
             logger.error(f"Error executing step {step_idx + 1}: {e}")
             raise e
 
-    logger.info(f"Extracted final media path: {final_video_path}")
+    logger.info(f"Final result from last step: {final_video_path}")
+    
+    # --- Final Result Resolution ---
+    # If the final result is a media ID (like from extract_audio), resolve it to a path
+    final_media_path = None
+    if final_video_path:
+        if final_video_path in temp_media_bin:
+            final_media_path = temp_media_bin[final_video_path]
+            logger.info(f"Resolved final media ID '{final_video_path}' to path: {final_media_path}")
+        elif Path(final_video_path).exists():
+            final_media_path = final_video_path
+            logger.info("Final result is already a valid path.")
+        else:
+            logger.warning("Could not resolve the final result to a valid file path.")
     
     # Determine if output is audio or video based on file extension
     media_type = "video"
-    if final_video_path:
-        file_extension = Path(final_video_path).suffix.lower()
+    if final_media_path:
+        file_extension = Path(final_media_path).suffix.lower()
         if file_extension in ['.mp3', '.wav', '.m4a', '.aac']:
             media_type = "audio"
             
-    output_url = f"/outputs/{Path(final_video_path).name}" if final_video_path else None
+    output_url = f"/outputs/{Path(final_media_path).name}" if final_media_path else None
     
     if media_type == "audio":
-        final_message = f"Audio extraction complete! I've extracted the audio track from your video."
+        final_message = f"Audio operation complete! Your new audio file is ready."
     else:
         final_message = f"Video editing complete! Your edited video is ready."
     
@@ -383,7 +397,7 @@ Example: [{{"action": "trim", "video_id": "original_video_id", "start_time": 0, 
             additional_kwargs={
                 "output_url": output_url,
                 "media_type": media_type,
-                "filename": Path(final_video_path).name if final_video_path else None
+                "filename": Path(final_media_path).name if final_media_path else None
             }
         )]
     }

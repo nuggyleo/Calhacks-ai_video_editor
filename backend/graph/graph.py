@@ -6,6 +6,7 @@ from langgraph.graph import StateGraph, END
 
 from backend.graph.state import GraphState
 from backend.graph.nodes.answer_question import answer_question
+from backend.graph.nodes.edit_query_parser import edit_query_parser
 from backend.graph.nodes.unified_edit_executor import unified_edit_executor
 from backend.graph.nodes.chatbot import chatbot
 from backend.graph.nodes.vision_analyzer import vision_analyzer_node
@@ -20,8 +21,8 @@ def master_router(state: GraphState):
     print(f"--- MASTER ROUTER: Tool choice is '{tool_choice}' ---")
 
     if tool_choice == "execute_edit":
-        print("--- Routing to: unified_edit_executor ---")
-        return "unified_edit_executor"
+        print("--- Routing to: edit_query_parser ---")
+        return "edit_query_parser"
     
     if tool_choice == "functional_question":
         # Step 1 Check PASSED (Intent is functional). Skip all vision checks.
@@ -47,6 +48,7 @@ workflow = StateGraph(GraphState)
 
 # Add the nodes
 workflow.add_node("chatbot", chatbot)
+workflow.add_node("edit_query_parser", edit_query_parser)
 workflow.add_node("unified_edit_executor", unified_edit_executor)
 workflow.add_node("answer_question", answer_question)
 workflow.add_node("vision_analyzer", vision_analyzer_node)
@@ -59,7 +61,7 @@ workflow.add_conditional_edges(
     "chatbot",
     master_router,
     {
-        "unified_edit_executor": "unified_edit_executor",
+        "edit_query_parser": "edit_query_parser",
         "vision_analyzer": "vision_analyzer",
         "answer_question": "answer_question",
     }
@@ -67,6 +69,9 @@ workflow.add_conditional_edges(
 
 # After vision analysis, the flow must proceed to answer the question.
 workflow.add_edge("vision_analyzer", "answer_question")
+
+# The new edit flow: parser -> executor
+workflow.add_edge("edit_query_parser", "unified_edit_executor")
 
 # Both paths must end to return a response to the web request.
 workflow.add_edge("answer_question", END) # End after answering

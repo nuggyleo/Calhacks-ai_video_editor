@@ -1,421 +1,190 @@
-import os
 import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Optional
 
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
-from langchain_openai import ChatOpenAI
-from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
+from langgraph.prebuilt import ToolExecutor, ToolInvocation
 
 from backend.graph.state import GraphState
-# Import the original tools so we can wrap them
 from backend.video_engine import tools as video_tools
 
-# Configure logging for this module
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 def unified_edit_executor(state: GraphState):
     """
-    Unified node that both parses complex edit queries and executes them.
-    This replaces both edit_query_parser and execute_edit nodes.
+    Executes a list of natural language editing instructions by dynamically
+    parsing each step into a tool call and dispatching it.
     """
-    logger.info("--- UNIFIED EDIT EXECUTOR: Starting ---")
+    logger.info("--- UNIFIED EDIT EXECUTOR (Action Executor): Starting ---")
     
-    # Get context from the main graph state
     media_bin = state.get("media_bin", {})
+    nl_actions = state.get("parsed_actions", [])
     active_video_id = state.get("active_video_id")
-    parsed_query = state.get("parsed_query", {})
-    edit_actions = parsed_query.get("data", [])
-    messages = state.get("messages", [])
 
-    logger.info(f"Active Video ID: {active_video_id}")
-    logger.info(f"Media Bin Keys: {list(media_bin.keys())}")
-    logger.info(f"Parsed Edit Actions: {edit_actions}")
+    if not nl_actions:
+        return {**state, "error": "No actions to execute."}
 
-    if not all([edit_actions, active_video_id, media_bin]):
-        logger.error("Missing data for video editing. Aborting.")
-        return {**state, "error": "Missing data for video editing."}
-
-    # Get the user's original command from the last message
-    user_command = ""
-    if messages:
-        last_message = messages[-1]
-        if hasattr(last_message, 'content'):
-            user_command = last_message.content
-        elif isinstance(last_message, dict):
-            user_command = last_message.get('content', '')
-
-    logger.info(f"User command: {user_command}")
-
-    # Check if this is a complex command that needs parsing
-    # Complex commands are those that don't have proper video_id chaining
-    is_complex_command = (
-        isinstance(edit_actions, list) and len(edit_actions) > 1 and
-        any(action.get('video_id') is None for action in edit_actions if isinstance(action, dict))
-    )
-
-    if is_complex_command:
-        logger.info("Complex command detected, parsing into atomic actions")
-        
-        # Create a specialized prompt for parsing complex edit commands
-        media_bin_context = {
-            media_id: {"type": "video" if Path(path).suffix.lower() in ['.mp4', '.mov', '.avi', '.webm'] else "audio"}
-            for media_id, path in media_bin.items()
-        }
-
-        PARSER_PROMPT = f"""You are a master AI video editing assistant. Your task is to deconstruct a user's complex command into a precise, sequential JSON array of atomic actions.
-
-**CRITICAL RULES:**
-1.  **Output ONLY the JSON array.** No explanations, no markdown, just the raw JSON.
-2.  **Strictly adhere to the action formats provided.** Do not invent new parameters.
-3.  **Handle "each video" commands:** If the user says "each video" or "all videos," you MUST iterate through the `media_bin_context` and create a separate, identical action for EACH item of `type: "video"`. Do NOT apply video actions to audio files.
-4.  **Sequential Chaining is KEY:**
-    - The first action(s) targeting a specific video should use its ID from `media_bin_context`.
-    - Subsequent actions that build on a previous result MUST use the placeholder `{{{{result_of_step_N}}}}`, where `N` is the 1-based index of the step that produced the required input.
-5.  **Concatenation:** When concatenating, the `video_ids` list should contain the placeholders from all the preceding trim/edit steps.
-
-**Available Tools & Formats:**
-
-- **trim**: `{{ "action": "trim", "video_id": "some_video_id", "start_time": 0.0, "end_time": 5.0 }}`
-- **add_text**: `{{ "action": "add_text", "video_id": "{{{{result_of_step_N}}}}", "text": "Hello", "start_time": 0.0, "duration": 3.0, "position": "center" }}`
-- **apply_filter**: `{{ "action": "apply_filter", "video_id": "{{{{result_of_step_N}}}}", "filter_description": "black and white" }}`
-- **change_speed**: `{{ "action": "change_speed", "video_id": "some_video_id", "speed_factor": 2.0 }}`
-- **concatenate**: `{{ "action": "concatenate", "video_ids": ["{{{{result_of_step_1}}}}", "{{{{result_of_step_2}}}}"] }}`
-- **add_transition**: `{{ "action": "add_transition", "video_id": "{{{{result_of_step_N}}}}", "transition_type": "fade_in", "duration": 1.0 }}`
-- **extract_audio**: `{{ "action": "extract_audio", "video_id": "some_video_id" }}`
-- **add_audio_to_video**: `{{ "action": "add_audio_to_video", "video_id": "some_video_id", "audio_id": "some_audio_id" }}`
-
-**Context:**
-
-- **User Command:** "{user_command}"
-- **Media Bin:** {json.dumps(media_bin_context, indent=2)}
-
-**Example Breakdown:**
-User Command: "Trim the first 5 seconds of each video, then combine them."
-Media Bin: {{ "video1.mp4": {{ "type": "video" }}, "video2.mp4": {{ "type": "video" }}, "audio.mp3": {{ "type": "audio" }} }}
-
-**CORRECT JSON OUTPUT:**
-[
-  {{
-    "action": "trim",
-    "video_id": "video1.mp4",
-    "start_time": 0,
-    "end_time": 5
-  }},
-  {{
-    "action": "trim",
-    "video_id": "video2.mp4",
-    "start_time": 0,
-    "end_time": 5
-  }},
-  {{
-    "action": "concatenate",
-    "video_ids": [
-      "{{{{result_of_step_1}}}}",
-      "{{{{result_of_step_2}}}}"
-    ]
-  }}
-]
-
-Now, generate the JSON for the user's command.
-"""
-        
-        # Initialize the parser model
-        model = ChatOpenAI(temperature=0, streaming=False, model="gpt-4-turbo-preview", model_kwargs={"response_format": {"type": "json_object"}})
-        
-        # Create the message for parsing
-        parse_message = [SystemMessage(content=PARSER_PROMPT)]
-        
-        try:
-            # Get the AI's response
-            response = model.invoke(parse_message)
-            
-            # The model is now expected to return a JSON object with a key like "actions"
-            response_data = json.loads(response.content)
-            
-            # Extract the list of actions, assuming it's the first (or only) value in the dict
-            parsed_actions = next(iter(response_data.values()))
-            
-            # Ensure it's a list
-            if not isinstance(parsed_actions, list):
-                 raise ValueError("Parsed response is not a list of actions.")
-            
-            logger.info(f"Successfully parsed {len(parsed_actions)} sequential actions: {json.dumps(parsed_actions, indent=2)}")
-            edit_actions = parsed_actions
-            
-        except (json.JSONDecodeError, StopIteration, ValueError) as e:
-            logger.error(f"Failed to parse AI response or response was malformed: {e}")
-            # Fallback to keep the original actions, though they are likely to fail
-            pass
-        except Exception as e:
-            logger.error(f"An unexpected error occurred during parsing: {e}")
-            # Fallback
-            pass
-
-    # Now execute the actions (either original or parsed)
-    logger.info(f"Executing {len(edit_actions)} actions")
-    
-    # Create simplified, "bound" tools for the agent
+    # --- Agentic Tool Definitions ---
+    # These wrappers provide the necessary context (media_bin) to the core tool functions.
     @tool
-    def trim_video(start_time: float, end_time: Optional[float] = None) -> str:
-        """Trims the currently active video."""
-        return video_tools.trim_video.func(
-            active_video_id=active_video_id, media_bin=media_bin,
-            start_time=start_time, end_time=end_time
-        )
+    def trim_video(video_id: str, start_time: float, end_time: float) -> str:
+        """Trims a video to a specific start and end time."""
+        return video_tools.trim_video(video_id=video_id, media_bin=temp_media_bin, start_time=start_time, end_time=end_time)
 
     @tool
-    def add_text_to_video(text: str, start_time: float, duration: float, position: str = "center", fontsize: int = 70, color: str = 'white') -> str:
-        """Adds a text overlay to the currently active video."""
-        return video_tools.add_text_to_video.func(
-            active_video_id=active_video_id, media_bin=media_bin,
-            text=text, start_time=start_time, duration=duration,
-            position=position, fontsize=fontsize, color=color
-        )
+    def add_text_to_video(video_id: str, text: str, start_time: float, duration: float, position: str = "center", fontsize: int = 70, color: str = 'white') -> str:
+        """Adds a text overlay to a video."""
+        return video_tools.add_text_to_video(video_id=video_id, media_bin=temp_media_bin, text=text, start_time=start_time, duration=duration, position=position, fontsize=fontsize, color=color)
 
     @tool
-    def apply_filter_to_video(filter_description: str) -> str:
-        """Applies a filter to the currently active video."""
-        return video_tools.apply_filter_to_video.func(
-            active_video_id=active_video_id, media_bin=media_bin,
-            filter_description=filter_description
-        )
+    def apply_filter_to_video(video_id: str, filter_description: str) -> str:
+        """Applies a visual filter or transition to a video."""
+        return video_tools.apply_filter_to_video(video_id=video_id, media_bin=temp_media_bin, filter_description=filter_description)
 
     @tool
-    def change_video_speed(speed_factor: float) -> str:
-        """Changes the speed of the currently active video."""
-        return video_tools.change_video_speed.func(
-            active_video_id=active_video_id, media_bin=media_bin,
-            speed_factor=speed_factor
-        )
+    def change_video_speed(video_id: str, speed_factor: float) -> str:
+        """Changes the playback speed of a video."""
+        return video_tools.change_video_speed(video_id=video_id, media_bin=temp_media_bin, speed_factor=speed_factor)
 
     @tool
     def concatenate_videos(video_ids: List[str]) -> str:
-        """Concatenates the specified videos together."""
-        return video_tools.concatenate_videos.func(
-            video_ids=video_ids, media_bin=media_bin
-        )
+        """Combines multiple videos into a single video."""
+        return video_tools.concatenate_videos(video_ids=video_ids, media_bin=temp_media_bin)
 
     @tool
-    def extract_audio() -> str:
-        """Extracts the audio track from the currently active video and saves it as an MP3 file."""
-        return video_tools.extract_audio.func(
-            active_video_id=active_video_id, media_bin=media_bin
-        )
+    def extract_audio(video_id: str) -> str:
+        """Extracts the audio track from a video."""
+        return video_tools.extract_audio(video_id=video_id, media_bin=temp_media_bin)
 
     @tool
     def add_audio_to_video(video_id: str, audio_id: str) -> str:
-        """Adds or replaces the audio track of a video with an audio file from the media library."""
-        return video_tools.add_audio_to_video.func(
-            video_id=video_id, audio_id=audio_id, media_bin=media_bin
-        )
-
+        """Adds an audio track to a video."""
+        return video_tools.add_audio_to_video(video_id=video_id, audio_id=audio_id, media_bin=temp_media_bin)
+    
     @tool
     def extract_and_add_audio(source_video_id: str, destination_video_id: str) -> str:
         """Extracts audio from one video and adds it to another."""
-        return video_tools.extract_and_add_audio.func(
-            source_video_id=source_video_id, destination_video_id=destination_video_id, media_bin=media_bin
-        )
+        return video_tools.extract_and_add_audio(source_video_id=source_video_id, destination_video_id=destination_video_id, media_bin=temp_media_bin)
 
     tools = [trim_video, add_text_to_video, apply_filter_to_video, change_video_speed, concatenate_videos, extract_audio, add_audio_to_video, extract_and_add_audio]
-
-    # Check if this is a multi-step task
-    is_multi_step = len(edit_actions) > 1
-    logger.info(f"Processing {'multi-step' if is_multi_step else 'single-step'} task with {len(edit_actions)} action(s)")
+    tool_executor = ToolExecutor(tools)
     
-    tool_map = {tool.name: tool for tool in tools}
-    results = {}  # Store intermediate results (file paths)
-    temp_media_ids = {}  # Store temporary media IDs for intermediate files
-    final_video_path = None
-    
-    # Make a mutable copy of media_bin for adding temporary files
+    results = {}
     temp_media_bin = dict(media_bin)
+    temp_media_ids = {}
+    final_outputs = []
+
+    TOOL_CALLER_PROMPT_TEMPLATE = """You are a precise AI tool-calling assistant. Your ONLY job is to convert a natural language instruction into a single, valid JSON tool call based on the available tools.
+
+**Available Tools & Formats:**
+- `trim_video(video_id: str, start_time: float, end_time: float)`
+- `add_text_to_video(video_id: str, text: str, start_time: float, duration: float, position: str = "center", ...)`
+- `apply_filter_to_video(video_id: str, filter_description: str)` - Use for filters and transitions like "fade_in", "fade_out".
+- `change_video_speed(video_id: str, speed_factor: float)`
+- `concatenate_videos(video_ids: List[str])`
+- `extract_audio(video_id: str)`
+- `add_audio_to_video(video_id: str, audio_id: str)`
+- `extract_and_add_audio(source_video_id: str, destination_video_id: str)`
+
+**CRITICAL RULES:**
+1.  **Output ONLY the JSON tool call.** Your entire response should be a single JSON object.
+2.  The "action" field in your JSON MUST match one of the available tool names exactly.
+3.  If the instruction refers to a result from a previous step (e.g., "the edited video"), you MUST use the placeholder `{{{{result_of_step_N}}}}` for the `video_id` or `audio_id`.
+4.  If the instruction mentions a filename (e.g., "video1.mp4"), use that to find the corresponding ID from the Media Bin context. 
+5.  If no specific video is mentioned and it's the first step, assume the target is the `active_video_id`.
+
+**Context:**
+- **Instruction to parse:** "{instruction}"
+- **Active Video ID:** "{active_video_id}"
+- **Media Bin (filename: id):** {media_bin_context}
+- **Results of previous steps (for placeholders):** {results_context}
+
+Now, generate the single JSON tool call for the instruction.
+"""
+
+    model = ChatOpenAI(temperature=0, model="gpt-4-turbo-preview", model_kwargs={"response_format": {"type": "json_object"}})
     
-    # Execute each action in sequence
-    for step_idx, action_dict in enumerate(edit_actions):
-        logger.info(f"\n--- Executing Step {step_idx + 1}/{len(edit_actions)} ---")
-        
-        # If a video_id is not specified in the action, default to the active one.
-        # This is crucial for the first step of a multi-step edit.
-        if 'video_id' not in action_dict:
-            action_dict['video_id'] = active_video_id
-            
-        logger.info(f"Action: {action_dict}")
-        
-        # Replace placeholders like {{result_of_step_1}} with actual values
-        action_str = json.dumps(action_dict)
-        logger.info(f"Original action_str: {action_str}")
-        logger.info(f"Available results: {results}")
-        
-        for prev_step, prev_result_path in results.items():
-            # Check if we need an ID or a path
-            placeholder_id = f"{{{{result_of_step_{prev_step}}}}}"
-            logger.info(f"Looking for placeholder: {placeholder_id}")
-            
-            if placeholder_id in action_str:
-                # Get or create a temporary ID for this result
-                if prev_step not in temp_media_ids:
-                    temp_id = f"temp_result_{prev_step}"
-                    temp_media_ids[prev_step] = temp_id
-                    temp_media_bin[temp_id] = prev_result_path
-                    logger.info(f"Added temporary media: {temp_id} -> {prev_result_path}")
-                
-                # Replace with the temp ID
-                temp_id = temp_media_ids[prev_step]
-                logger.info(f"Replacing {placeholder_id} with temp ID: {temp_id}")
-                action_str = action_str.replace(f'"{placeholder_id}"', f'"{temp_id}"')
-        
-        logger.info(f"Final action_str after placeholder replacement: {action_str}")
-        
-        action_dict = json.loads(action_str)
-        
-        # Determine which tool to call based on action
-        action_name = action_dict.get('action', '')
-        
-        # Map action names to tool names
-        action_to_tool = {
-            'trim': 'trim_video',
-            'add_text': 'add_text_to_video',
-            'add_caption': 'add_text_to_video',  # Support both add_text and add_caption
-            'apply_filter': 'apply_filter_to_video',
-            'filter': 'apply_filter_to_video',  # Support both for backward compatibility
-            'add_transition': 'apply_filter_to_video', # Route transitions to the filter tool
-            'speed': 'change_video_speed',
-            'change_speed': 'change_video_speed',  # Support both
-            'concatenate': 'concatenate_videos',
-            'extract_audio': 'extract_audio',
-            'add_audio_to_video': 'add_audio_to_video',
-            'add_audio': 'add_audio_to_video',  # Support both
-            'merge_audio': 'add_audio_to_video', # Add mapping for merge_audio
-            'extract_and_add_audio': 'extract_and_add_audio'
-        }
-        
-        tool_name = action_to_tool.get(action_name, action_name)
-        
-        if tool_name not in tool_map:
-            logger.error(f"Unknown tool: {tool_name}")
-            continue
-            
-        # Prepare arguments (remove 'action' field)
-        tool_args = {k: v for k, v in action_dict.items() if k != 'action'}
-        
-        logger.info(f"Calling tool '{tool_name}' with args: {tool_args}")
-        
+    media_bin_context = {Path(p).name: i for i, p in media_bin.items()}
+
+    for step_idx, instruction in enumerate(nl_actions):
+        logger.info(f"--- Executor: Step {step_idx + 1}/{len(nl_actions)} ---")
+        logger.info(f"Instruction: '{instruction}'")
+
         try:
-            # Call the underlying video_tools functions directly with temp_media_bin
-            result_path = None
+            prompt = TOOL_CALLER_PROMPT_TEMPLATE.format(
+                instruction=instruction,
+                results_context=json.dumps(list(results.keys())),
+                active_video_id=active_video_id,
+                media_bin_context=json.dumps(media_bin_context)
+            )
+            response = model.invoke([SystemMessage(content=prompt)])
             
-            # IMPORTANT: Use the video_id from the action_dict, not the overall active_video_id
-            current_video_id = action_dict.get('video_id', active_video_id)
+            action_dict = json.loads(response.content)
             
-            if action_name == 'trim':
-                result_path = video_tools.trim_video.func(
-                    active_video_id=current_video_id,
-                    media_bin=temp_media_bin,
-                    start_time=tool_args['start_time'],
-                    end_time=tool_args.get('end_time')
-                )
-            elif action_name in ['add_text', 'add_caption']:
-                result_path = video_tools.add_text_to_video.func(
-                    active_video_id=current_video_id,
-                    media_bin=temp_media_bin,
-                    text=tool_args['text'],
-                    start_time=tool_args['start_time'],
-                    duration=tool_args['duration'],
-                    position=tool_args.get('position', 'center'),
-                    fontsize=tool_args.get('fontsize', 70),
-                    color=tool_args.get('color', 'white')
-                )
-            elif action_name in ['filter', 'apply_filter', 'add_transition']:
-                result_path = video_tools.apply_filter_to_video.func(
-                    active_video_id=current_video_id,
-                    media_bin=temp_media_bin,
-                    filter_description=tool_args.get('filter_description') or tool_args.get('transition_type')
-                )
-            elif action_name in ['speed', 'change_speed']:
-                result_path = video_tools.change_video_speed.func(
-                    active_video_id=current_video_id,
-                    media_bin=temp_media_bin,
-                    speed_factor=tool_args['speed_factor']
-                )
-            elif action_name == 'concatenate':
-                result_path = video_tools.concatenate_videos.func(
-                    video_ids=tool_args['video_ids'],
-                    media_bin=temp_media_bin
-                )
-            elif action_name == 'extract_audio':
-                result_path = video_tools.extract_audio.func(
-                    active_video_id=current_video_id,
-                    media_bin=temp_media_bin
-                )
-            elif action_name in ['add_audio_to_video', 'add_audio', 'merge_audio']:
-                result_path = video_tools.add_audio_to_video.func(
-                    video_id=tool_args['video_id'],
-                    audio_id=tool_args['audio_id'],
-                    media_bin=temp_media_bin
-                )
-            elif action_name == 'extract_and_add_audio':
-                result_path = video_tools.extract_and_add_audio.func(
-                    source_video_id=tool_args['source_video_id'],
-                    destination_video_id=tool_args['destination_video_id'],
-                    media_bin=temp_media_bin
-                )
-            else:
-                logger.error(f"Unknown action: {action_name}")
-                continue
+            # Handle potential nesting of the tool call
+            if "tool_call" in action_dict:
+                 action_dict = action_dict["tool_call"]
+            elif "action" not in action_dict and len(action_dict) == 1:
+                tool_name = next(iter(action_dict.keys()))
+                tool_args = action_dict[tool_name]
+                action_dict = {"action": tool_name, **tool_args}
+
+            tool_name = action_dict.pop('action')
+            tool_args = action_dict
+
+            # Substitute placeholders in the arguments with temporary IDs
+            args_str = json.dumps(tool_args)
+            for prev_step, prev_result_path in results.items():
+                placeholder = f"{{{{result_of_step_{prev_step}}}}}"
+                if placeholder in args_str:
+                    if prev_step not in temp_media_ids:
+                        temp_id = f"temp_result_{prev_step}"
+                        temp_media_ids[prev_step] = temp_id
+                        temp_media_bin[temp_id] = prev_result_path
+                    
+                    temp_id_to_use = temp_media_ids[prev_step]
+                    args_str = args_str.replace(f'"{placeholder}"', f'"{temp_id_to_use}"')
             
+            tool_args = json.loads(args_str)
+
+            logger.info(f"Dispatching tool call: {tool_name}({tool_args})")
+
+            invocation = ToolInvocation(tool=tool_name, tool_input=tool_args)
+            tool_result_message = tool_executor.batch([invocation])[0]
+            
+            result_path = tool_result_message.content
             logger.info(f"Step {step_idx + 1} completed. Result: {result_path}")
             
-            # Store result for potential use in next steps
             results[step_idx + 1] = result_path
-            final_video_path = result_path  # The last result is the final output
             
-        except Exception as e:
-            logger.error(f"Error executing step {step_idx + 1}: {e}")
-            raise e
+            is_dependency = any(f"step {step_idx + 1}" in act for act in nl_actions[step_idx+1:])
+            if not is_dependency:
+                final_outputs.append(result_path)
 
-    logger.info(f"Final result from last step: {final_video_path}")
-    
-    # --- Final Result Resolution ---
-    # If the final result is a media ID (like from extract_audio), resolve it to a path
-    final_media_path = None
-    if final_video_path:
-        if final_video_path in temp_media_bin:
-            final_media_path = temp_media_bin[final_video_path]
-            logger.info(f"Resolved final media ID '{final_video_path}' to path: {final_media_path}")
-        elif Path(final_video_path).exists():
-            final_media_path = final_video_path
-            logger.info("Final result is already a valid path.")
+        except Exception as e:
+            logger.error(f"Error executing action for instruction '{instruction}': {e}", exc_info=True)
+            return {**state, "error": f"Error during editing: {e}"}
+
+    if not final_outputs:
+        if results:
+            final_outputs.append(results[max(results.keys())])
         else:
-            logger.warning("Could not resolve the final result to a valid file path.")
+            return {**state, "messages": [AIMessage(content="No final output was generated.")]}
+
+    if len(final_outputs) > 1:
+        final_message = f"Successfully created {len(final_outputs)} new videos. They have been added to your media bin."
+        return {**state, "messages": [AIMessage(content=final_message)]}
     
-    # Determine if output is audio or video based on file extension
-    media_type = "video"
-    if final_media_path:
-        file_extension = Path(final_media_path).suffix.lower()
-        if file_extension in ['.mp3', '.wav', '.m4a', '.aac']:
-            media_type = "audio"
-            
+    final_media_path = final_outputs[0]
     output_url = f"/outputs/{Path(final_media_path).name}" if final_media_path else None
     
-    if media_type == "audio":
-        final_message = f"Audio operation complete! Your new audio file is ready."
-    else:
-        final_message = f"Video editing complete! Your edited video is ready."
+    final_message = "Video editing complete! Your new video is ready."
     
-    logger.info(f"Final message for UI: {final_message}")
-
     return {
-        "messages": [AIMessage(
-            content=final_message,
-            additional_kwargs={
-                "output_url": output_url,
-                "media_type": media_type,
-                "filename": Path(final_media_path).name if final_media_path else None
-            }
-        )]
+        **state,
+        "messages": [AIMessage(content=final_message, additional_kwargs={"output_url": output_url, "filename": Path(final_media_path).name if final_media_path else None})]
     }

@@ -4,13 +4,51 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 
 const CommandInput = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [height, setHeight] = useState(80); // Default height in pixels
+  const [isDragging, setIsDragging] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragStartY = useRef(0);
+  const dragStartHeight = useRef(0);
   const { activeVideoId, mediaBin, messages, addMessage, updateMessage, handleSuccessfulEdit } = useAppStore();
+
+  // Handle mouse drag for resizing
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      
+      const deltaY = dragStartY.current - e.clientY; // Inverted: dragging up increases height
+      const newHeight = Math.min(Math.max(dragStartHeight.current + deltaY, 60), 400); // Min 60px, max 400px
+      setHeight(newHeight);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    dragStartY.current = e.clientY;
+    dragStartHeight.current = height;
+  };
 
   const handleSend = async () => {
     if (!input.trim() || !activeVideoId) return;
@@ -136,20 +174,37 @@ const CommandInput = () => {
   };
 
   return (
-    <div className="relative">
-      <input
-        type="text"
+    <div className="relative" ref={containerRef}>
+      {/* Resize handle at the top */}
+      <div
+        onMouseDown={handleMouseDown}
+        className={`absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-blue-500/20 transition-colors z-10 flex items-center justify-center ${
+          isDragging ? 'bg-blue-500/30' : ''
+        }`}
+        title="Drag to resize"
+      >
+        <div className="w-12 h-1 bg-gray-600 rounded-full" />
+      </div>
+
+      <textarea
+        ref={textareaRef}
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSend()}
-        placeholder={activeVideoId ? 'Send an editing command...' : 'Select a video to start'}
+        onKeyPress={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey && !isLoading) {
+            e.preventDefault();
+            handleSend();
+          }
+        }}
+        placeholder={activeVideoId ? 'Send an editing command... (Shift+Enter for new line)' : 'Select a video to start'}
         disabled={!activeVideoId || isLoading}
-        className="w-full bg-gray-700 text-white px-4 py-3 pr-12 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        style={{ height: `${height}px` }}
+        className="w-full bg-gray-700 text-white px-4 py-3 pr-14 pt-6 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
       />
       <button
         onClick={handleSend}
         disabled={!activeVideoId || !input.trim() || isLoading}
-        className="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white p-2 rounded-md transition-colors"
+        className="absolute right-3 bottom-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white p-2 rounded-md transition-colors"
         aria-label="Send command"
       >
         {isLoading ? (

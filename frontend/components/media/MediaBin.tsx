@@ -81,9 +81,9 @@ const MediaBin = () => {
     }
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    deleteMediaFile(id);
+    await deleteMediaFile(id);
   };
 
   const handleRenameClick = (id: string, currentName: string, e: React.MouseEvent) => {

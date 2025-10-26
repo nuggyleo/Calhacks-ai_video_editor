@@ -90,14 +90,14 @@ interface AppState {
   setActiveAudioId: (id: string) => void;
   revertToPreviousVersion: (videoId: string) => void;
   redoLastAction: (videoId: string) => void;
-  deleteMediaFile: (id: string) => void;
+  deleteMediaFile: (id: string) => Promise<void>;
   setUploadProgress: (progress: number) => void;
   setIsUploading: (isUploading: boolean) => void;
   addMessage: (message: ChatMessage) => void;
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
   handleSuccessfulEdit: (videoId: string, newUrl: string, messageId: string, messageContent: string) => void;
   addEditedMediaToLibrary: (url: string, filename: string, mediaType: 'video' | 'audio') => void;
-  clearChat: () => void;
+  clearChat: () => Promise<void>;
   renameMediaFile: (id: string, newFilename: string) => void;
   updateMediaFileDescription: (id: string, description: string) => void;
   setPlaybackState: (updates: Partial<AppState['playbackState']>) => void;
@@ -215,7 +215,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
   }),
 
-  deleteMediaFile: (id: string) =>
+  deleteMediaFile: async (id: string) => {
     set((state) => {
       const updatedFiles = state.mediaBin.filter(f => f.id !== id);
       const newActiveId = state.activeVideoId === id
@@ -226,7 +226,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         mediaBin: updatedFiles,
         activeVideoId: newActiveId
       };
-    }),
+    });
+    // Persist the deletion to backend
+    await get().saveCurrentProject();
+  },
 
   setUploadProgress: (progress: number) =>
     set({ uploadProgress: progress }),
@@ -294,11 +297,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
   }),
 
-  clearChat: () => {
+  clearChat: async () => {
     set({
       messages: [],
       currentThreadId: null,
     });
+    // Persist the cleared chat to backend
+    await get().saveCurrentProject();
   },
 
   renameMediaFile: (id: string, newFilename: string) =>

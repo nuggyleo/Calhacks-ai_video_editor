@@ -9,9 +9,9 @@ import { useAppStore } from "@/lib/store";
 const ChatPanel = () => {
   const { clearChat } = useAppStore();
 
-  const handleClearChat = () => {
+  const handleClearChat = async () => {
     if (window.confirm("Are you sure you want to clear the chat history? This cannot be undone.")) {
-      clearChat();
+      await clearChat();
     }
   };
 

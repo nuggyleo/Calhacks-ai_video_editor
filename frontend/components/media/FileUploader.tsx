@@ -52,45 +52,35 @@ const FileUploader = ({
       if (response.ok) {
         const data = await response.json();
 
-        const thinkingMessageId = `thinking-${Date.now()}`;
-        addMessage({
-          id: thinkingMessageId,
-          role: 'assistant',
-          content: 'Analyzing video content...',
-          timestamp: new Date(),
-          status: 'pending',
+        // Add media file to the store immediately
+        addMediaFile({
+          id: data.file_id,
+          filename: data.filename,
+          url: `http://localhost:8000${data.url}`,
+          type: file.type,
+          mediaType: 'video', // This is a video file
+          uploadedAt: new Date(),
+          description: data.description || "",
+          isAnalyzing: false,
         });
 
-        // Simulate a delay for "thinking"
+        // Set the new video as the active one
+        setActiveVideoId(data.file_id);
+
+        // Simple success message
+        addMessage({
+          id: `upload-success-${Date.now()}`,
+          role: 'assistant',
+          content: `✅ Video "${data.filename}" uploaded successfully!`,
+          timestamp: new Date(),
+          status: 'completed',
+        });
+
+        setUploadProgress(100);
         setTimeout(() => {
-          // Add media file to the store
-          addMediaFile({
-            id: data.file_id,
-            filename: data.filename,
-            url: `http://localhost:8000${data.url}`,
-            type: file.type,
-            mediaType: 'video', // This is a video file
-            uploadedAt: new Date(),
-            description: data.description || "",
-            isAnalyzing: false,
-          });
-
-          // Update the "thinking" message with the analysis result
-          updateMessage(thinkingMessageId, {
-            content: `Video analysis complete! Here's what I found:\n\n\`\`\`\n${data.description}\n\`\`\``,
-            status: 'completed',
-            timestamp: new Date(),
-          });
-
-          // Explicitly set the new video as the active one
-          setActiveVideoId(data.file_id);
-
-          setUploadProgress(100);
-          setTimeout(() => {
-            setIsUploading(false);
-            setUploadProgress(0);
-          }, 500);
-        }, 1500); // 1.5 second delay
+          setIsUploading(false);
+          setUploadProgress(0);
+        }, 500);
       } else {
         const errorText = await response.text();
         console.error('Upload failed:', errorText);

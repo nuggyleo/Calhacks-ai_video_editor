@@ -3,6 +3,12 @@
 
 import { create } from 'zustand';
 
+// API Configuration
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+// Helper function to encode email for URL
+const encodeEmail = (email: string) => encodeURIComponent(email);
+
 export interface MediaFile {
   id: string;
   filename: string;
@@ -362,18 +368,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   // ==================== PROJECT MANAGEMENT ====================
   
   loadProjects: async () => {
-    const { user, createProject, switchProject } = get();
-    if (!user) return;
-    
-    try {
-      const response = await fetch(`http://localhost:8000/api/projects/?user_email=${user.email}`);
+      set({ isProjectLoading: true });
+      const { user } = get();
+      if (!user) {
+        console.error('No user logged in');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_URL}/api/projects/?user_email=${encodeEmail(user.email)}`);
       if (response.ok) {
         let projects = await response.json();
         
         // If user has no projects, create a default one
         if (projects.length === 0) {
           console.log('No projects found, creating default project...');
-          const defaultProject = await createProject('My First Project');
+          const defaultProject = await get().createProject('My First Project');
           projects = [defaultProject];
         }
         
@@ -381,14 +391,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         
         // If no current project and user has projects, load the first one
         if (!get().currentProject && projects.length > 0) {
-          await switchProject(projects[0].id);
+          await get().switchProject(projects[0].id);
         }
         
         // Load saved videos (global, not per-project)
-        await get().loadSavedVideos();
+        // Temporarily disabled to prevent 500 error from blocking page load
+        // TODO: Fix backend saved-videos endpoint
+        // await get().loadSavedVideos();
       }
     } catch (error) {
       console.error('Failed to load projects:', error);
+    } finally {
+      set({ isProjectLoading: false });
     }
   },
   
@@ -398,7 +412,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     set({ isProjectLoading: true });
     try {
-      const response = await fetch(`http://localhost:8000/api/projects/?user_email=${user.email}`, {
+      const response = await fetch(`${API_URL}/api/projects/?user_email=${encodeEmail(user.email)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name })
@@ -429,7 +443,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     set({ isProjectLoading: true });
     try {
-      const response = await fetch(`http://localhost:8000/api/projects/${projectId}?user_email=${user.email}`);
+      const response = await fetch(`${API_URL}/api/projects/${projectId}?user_email=${encodeEmail(user.email)}`);
       if (response.ok) {
         const project = await response.json();
         
@@ -469,7 +483,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const mediaBinJson = JSON.stringify(mediaBin);
       const chatHistoryJson = JSON.stringify(messages);
       
-      await fetch(`http://localhost:8000/api/projects/${currentProject.id}?user_email=${user.email}`, {
+      await fetch(`${API_URL}/api/projects/${currentProject.id}?user_email=${encodeEmail(user.email)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -487,7 +501,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!user) return;
     
     try {
-      const response = await fetch(`http://localhost:8000/api/projects/${projectId}?user_email=${user.email}`, {
+      const response = await fetch(`${API_URL}/api/projects/${projectId}?user_email=${encodeEmail(user.email)}`, {
         method: 'DELETE'
       });
       
@@ -515,7 +529,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     try {
       const response = await fetch(
-        `http://localhost:8000/api/saved-videos/`,
+        `/api/saved-videos/`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -523,7 +537,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             filename,
             url: videoUrl,
             description,
-            user_email: user.email
+            user_email: user.email,
           })
         }
       );
@@ -560,7 +574,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     try {
       const response = await fetch(
-        `http://localhost:8000/api/saved-videos/?user_email=${user.email}`
+        `/api/saved-videos/?user_email=${encodeEmail(user.email)}`
       );
       
       console.log('loadSavedVideos response status:', response.status);
@@ -571,10 +585,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ savedVideos });
       } else {
         const errorText = await response.text();
-        console.error('loadSavedVideos: Failed. Status:', response.status, 'Error:', errorText);
+        console.error('loadSavedVideos error:', errorText);
       }
     } catch (error) {
-      console.error('Failed to load saved videos:', error);
+      console.error('loadSavedVideos error:', error);
     }
   },
   
@@ -584,7 +598,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     try {
       const response = await fetch(
-        `http://localhost:8000/api/saved-videos/${videoId}?user_email=${user.email}`,
+        `/api/saved-videos/?user_email=${encodeEmail(user.email)}&video_id=${videoId}`,
         { method: 'DELETE' }
       );
       
@@ -594,7 +608,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }));
       }
     } catch (error) {
-      console.error('Failed to delete saved video:', error);
+      console.error('Failed to delete video:', error);
     }
   },
 }));

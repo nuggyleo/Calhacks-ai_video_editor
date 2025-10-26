@@ -235,7 +235,7 @@ const MessageList = () => {
                             <polyline points="17 21 17 13 7 13 7 21"/>
                             <polyline points="7 3 7 8 15 8"/>
                           </svg>
-                          💾 Save to Project
+                          💾 Save to Collection
                         </button>
                       )}
                     </div>

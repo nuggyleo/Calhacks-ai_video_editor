@@ -400,9 +400,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
         
         // Load saved videos (global, not per-project)
-        // Temporarily disabled to prevent 500 error from blocking page load
-        // TODO: Fix backend saved-videos endpoint
-        // await get().loadSavedVideos();
+        await get().loadSavedVideos();
       }
     } catch (error) {
       console.error('Failed to load projects:', error);

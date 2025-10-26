@@ -43,11 +43,12 @@ const MessageList = () => {
   const formatTime = (date: Date) => new Date(date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   // Handlers to control the main player
+  // Note: These handlers are kept for potential future use with preview functionality
+  // Currently, preview videos in messages don't sync with the main player
   const handlePreviewPlay = (e: React.SyntheticEvent<HTMLVideoElement>, messageUrl: string) => {
     e.preventDefault();
-    if (activeVideo?.url !== messageUrl) {
-      setActiveVideoVersion(activeVideoId!, messageUrl);
-    }
+    // Removed setActiveVideoVersion to prevent overwriting original video in media bin
+    // User should click "Add to Media" to add edited videos as new files
     setPlaybackState({ isPlaying: true });
   };
   const handlePreviewPause = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -57,9 +58,7 @@ const MessageList = () => {
   const handlePreviewSeek = (e: React.SyntheticEvent<HTMLVideoElement>, messageUrl: string) => {
     e.preventDefault();
     const newTime = e.currentTarget.currentTime;
-    if (activeVideo?.url !== messageUrl) {
-      setActiveVideoVersion(activeVideoId!, messageUrl);
-    }
+    // Removed setActiveVideoVersion to prevent overwriting original video in media bin
     setPlaybackState({ currentTime: newTime });
   };
 

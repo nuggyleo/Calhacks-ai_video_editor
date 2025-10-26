@@ -55,6 +55,7 @@ You must classify the query into one of three tool choices: "execute_edit", "fun
     - Example 5: "speed up the video by 2x" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "change_speed", "video_id": "{active_video_id}", "speed_factor": 2.0}}]}}`
     - Example 6: "trim from 00:00 to 00:03 and then add a filter" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "trim", "video_id": "{active_video_id}", "start_time": 0, "end_time": 3}}, {{"action": "apply_filter", "video_id": "{{{{result_of_step_1}}}}", "filter_description": "add a filter"}}]}}`
     - Example 7: "add a green filter, then trim till 00:03" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "apply_filter", "video_id": "{active_video_id}", "filter_description": "add a green filter"}}, {{"action": "trim", "video_id": "{{{{result_of_step_1}}}}", "start_time": 0, "end_time": 3}}]}}`
+    - Example 8: "extract audio from 'video1.mp4' and add it to 'video2.mp4'" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "extract_and_add_audio", "source_video_id": "id_for_video1.mp4", "destination_video_id": "id_for_video2.mp4"}}]}}`
 
 2.  **`tool_choice`: "functional_question"**
     - Use this for questions about your capabilities, features, or how to use the system (NOT about video content).

@@ -172,7 +172,7 @@ def change_video_speed(active_video_id: str, media_bin: Dict[str, str], speed_fa
 def extract_audio(active_video_id: str, media_bin: Dict[str, str]) -> str:
     """
     Extracts the audio track from a video and saves it as an MP3 file.
-    Returns the path to the extracted audio file.
+    It adds the new audio file to the media bin and returns the new audio_id.
     """
     logger.info(f"--- TOOL: extract_audio starting ---")
     video_path = resolve_video_path(active_video_id, media_bin)
@@ -182,13 +182,21 @@ def extract_audio(active_video_id: str, media_bin: Dict[str, str]) -> str:
         if clip.audio is None:
             raise ValueError("The video does not have an audio track.")
         
+        # 1. Generate a unique ID and path for the new audio file
+        audio_id = str(uuid.uuid4())
         output_path = get_output_path(video_path, "extracted_audio", extension="mp3")
         
         logger.info(f"Writing extracted audio to: {output_path}")
         clip.audio.write_audiofile(output_path, logger='bar')
         
+        # 2. Add the new audio file to the media bin
+        # NOTE: This modifies the dictionary in-place.
+        media_bin[audio_id] = output_path
+        logger.info(f"Added new audio '{audio_id}' to media bin.")
+        
     logger.info(f"--- TOOL: extract_audio finished ---")
-    return output_path
+    # 3. Return the new audio_id
+    return audio_id
 
 @tool
 def add_audio_to_video(video_id: str, audio_id: str, media_bin: Dict[str, str]) -> str:
@@ -293,3 +301,38 @@ def concatenate_videos(video_ids: List[str], media_bin: Dict[str, str]) -> str:
             clip.close()
         if 'final_clip' in locals() and 'final_clip' is not None:
             final_clip.close()
+
+@tool
+def extract_and_add_audio(source_video_id: str, destination_video_id: str, media_bin: Dict[str, str]) -> str:
+    """
+    Extracts audio from a source video and adds it to a destination video in a single operation.
+    """
+    logger.info(f"--- TOOL: extract_and_add_audio starting ---")
+    logger.info(f"Source video: {source_video_id}, Destination video: {destination_video_id}")
+
+    try:
+        # 1. Resolve paths
+        source_path = resolve_video_path(source_video_id, media_bin)
+        destination_path = resolve_video_path(destination_video_id, media_bin)
+        logger.info(f"Resolved source path: {source_path}")
+        logger.info(f"Resolved destination path: {destination_path}")
+
+        # 2. Perform the combined operation
+        with VideoFileClip(source_path) as source_clip, VideoFileClip(destination_path) as dest_clip:
+            if source_clip.audio is None:
+                raise ValueError(f"The source video ('{source_video_id}') has no audio track to extract.")
+            
+            # Set the destination clip's audio to the source clip's audio
+            final_clip = dest_clip.set_audio(source_clip.audio)
+            
+            output_path = get_output_path(destination_path, "audio_swapped")
+            
+            logger.info(f"Writing final video to: {output_path}")
+            final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", logger='bar')
+
+        logger.info(f"--- TOOL: extract_and_add_audio finished ---")
+        return output_path
+
+    except Exception as e:
+        logger.error(f"Error during extract_and_add_audio: {e}", exc_info=True)
+        return f"Error: Failed to extract and add audio. Details: {str(e)}"

@@ -8,7 +8,7 @@ import TimelineView from "./TimelineView";
 const PlayerPanel = () => {
   return (
     <div className="w-full h-full bg-black flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-hidden p-4 flex items-center justify-center">
         <VideoPlayer />
       </div>
       <div className="flex-shrink-0">

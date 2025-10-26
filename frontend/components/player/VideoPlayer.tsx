@@ -242,31 +242,31 @@ const VideoPlayer = () => {
             <span className="text-white font-medium truncate">{activeAudio?.filename || 'Unknown'}</span>
           </div>
         </div>
-        
+
         {/* Audio display area */}
         <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-purple-900/20 to-black p-8">
           <div className="text-center space-y-6">
             {/* Large audio icon */}
             <div className="w-32 h-32 mx-auto bg-gradient-to-br from-purple-600/30 to-blue-600/30 rounded-full flex items-center justify-center border-2 border-purple-500/50">
               <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
-                <path d="M9 18V5l12-2v13"/>
-                <circle cx="6" cy="18" r="3"/>
-                <circle cx="18" cy="16" r="3"/>
+                <path d="M9 18V5l12-2v13" />
+                <circle cx="6" cy="18" r="3" />
+                <circle cx="18" cy="16" r="3" />
               </svg>
             </div>
-            
+
             <div>
               <h3 className="text-2xl font-light text-white mb-2">{activeAudio?.filename}</h3>
               <p className="text-sm text-gray-500">Audio file</p>
             </div>
-            
+
             {/* HTML5 Audio Player */}
             <div className="w-full max-w-md mx-auto">
               <audio
                 src={activeAudioUrl}
                 controls
                 className="w-full"
-                style={{ 
+                style={{
                   filter: 'invert(1) hue-rotate(180deg)',
                   borderRadius: '8px'
                 }}
@@ -323,7 +323,7 @@ const VideoPlayer = () => {
 
               {/* Dynamic Quote */}
               <div className="h-10 flex items-center justify-center">
-                <p 
+                <p
                   key={currentQuoteIndex}
                   className="text-2xl font-light text-gray-400 animate-fade-in-out italic"
                 >
@@ -337,18 +337,18 @@ const VideoPlayer = () => {
                   w-24 h-24 mx-auto rounded-full flex items-center justify-center
                   bg-gradient-to-br from-purple-600/20 to-blue-600/20 border-2
                   transition-all duration-300
-                  ${isDraggingFile 
-                    ? 'border-purple-500 scale-110' 
+                  ${isDraggingFile
+                    ? 'border-purple-500 scale-110'
                     : 'border-gray-700 hover:border-purple-600 hover:scale-105'
                   }
                 `}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" x2="12" y1="3" y2="15"/>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" x2="12" y1="3" y2="15" />
                   </svg>
                 </div>
-                
+
                 <div className="space-y-3">
                   <p className="text-3xl font-light text-gray-300">
                     {isDraggingFile ? 'Drop your video here' : 'Upload a video to start'}
@@ -418,7 +418,7 @@ const VideoPlayer = () => {
   }
 
   return (
-    <div className="w-full bg-gray-900 flex flex-col rounded-lg overflow-hidden">
+    <div className="w-full h-full bg-gray-900 flex flex-col rounded-lg overflow-hidden">
       {/* Header toolbar */}
       <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -426,19 +426,10 @@ const VideoPlayer = () => {
           <span className="text-white font-medium truncate">{activeVideo?.filename || 'Unknown'}</span>
         </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={handleUploadNewVideo}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors flex items-center gap-1"
-            title="Upload a new video"
-          >
-            ➕ Upload Video
-          </button>
-        </div>
       </div>
 
       {/* Video display area */}
-      <div className="w-full flex items-center justify-center bg-black p-4">
+      <div className="w-full flex-1 flex items-center justify-center bg-black p-4 overflow-hidden">
         <video
           ref={videoRef}
           key={activeVideoUrl}
@@ -446,39 +437,54 @@ const VideoPlayer = () => {
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onEnded={handleEnded}
-          className="max-w-full w-auto h-auto rounded"
+          className="max-w-full max-h-full object-contain rounded"
         />
       </div>
 
       {/* Custom controls */}
-      <div className="bg-gray-800 p-4 space-y-3 flex-shrink-0">
+      <div className="bg-gray-800/50 backdrop-blur-sm p-4 space-y-3 flex-shrink-0 border-t border-gray-700/50">
         {/* Progress bar */}
         <div
           ref={progressBarRef}
           onMouseDown={handleProgressMouseDown}
-          className="w-full h-2 bg-gray-700 rounded-full cursor-pointer group relative"
+          className="w-full h-3 bg-gray-700/50 rounded-full cursor-pointer group relative"
         >
           <div
-            className="h-full bg-blue-500 rounded-full relative group-hover:bg-blue-400 transition-colors"
+            className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full relative"
             style={{ width: `${(playbackState.currentTime / duration) * 100}%` }}
           >
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-5 h-5 bg-white rounded-full shadow-lg ring-2 ring-gray-800/50" />
           </div>
         </div>
 
         {/* Controls row */}
-        <div className="flex items-center justify-between">
-          {/* Play/Pause button */}
+        <div className="flex items-center justify-between gap-4">
+          {/* Time display (Left) */}
+          <div className="text-gray-400 text-sm font-mono w-20 text-left">
+            {formatTime(playbackState.currentTime)}
+          </div>
+
+          {/* Play/Pause button (Center) */}
           <button
             onClick={togglePlayPause}
-            className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-6 py-2 font-medium transition-colors"
+            className="bg-white/10 hover:bg-white/20 text-white rounded-full w-14 h-14 flex items-center justify-center transition-all duration-300 transform hover:scale-110"
+            title={playbackState.isPlaying ? 'Pause' : 'Play'}
           >
-            {playbackState.isPlaying ? '⏸ Pause' : '▶ Play'}
+            {playbackState.isPlaying ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0">
+                <rect x="6" y="4" width="4" height="16" />
+                <rect x="14" y="4" width="4" height="16" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            )}
           </button>
 
-          {/* Time display */}
-          <div className="text-gray-400 text-sm font-mono">
-            {formatTime(playbackState.currentTime)} / {formatTime(duration)}
+          {/* Time display (Right) */}
+          <div className="text-gray-400 text-sm font-mono w-20 text-right">
+            {formatTime(duration)}
           </div>
         </div>
       </div>

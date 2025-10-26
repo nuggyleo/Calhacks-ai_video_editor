@@ -91,7 +91,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       const project = await createProject(newProjectName.trim());
       await switchProject(project.id);
       setNewProjectName('');
-      setShowProjectsMenu(false);
+      setShowProjectsModal(false);
     } catch (error) {
       console.error('Failed to create project:', error);
     } finally {

@@ -147,6 +147,14 @@ Now, generate the single JSON tool call for the instruction.
                 results[step_idx + 1] = result_path # Always store the path
                 temp_media_bin[temp_id] = result_path # Always map the temp ID to the path
 
+                # --- CRITICAL: Error checking ---
+                # If the tool returned an error string, stop execution immediately.
+                if isinstance(result_path, str) and result_path.lower().startswith("error:"):
+                    logger.error(f"A tool failed at step {step_idx}. Halting execution. Error: {result_path}")
+                    # We'll let the final response formatting handle the error message.
+                    final_outputs = [result_path]
+                    break # Exit the loop immediately
+
                 logger.info(f"Step {step_idx + 1} completed. Result: {result_path}")
                 
                 is_dependency = any(f"step {step_idx + 1}" in act for act in nl_actions[step_idx+1:])
@@ -162,6 +170,7 @@ Now, generate the single JSON tool call for the instruction.
             return {**state, "error": f"Error during editing: {e}"}
 
     # --- Definitive Final Output Logic v2 ---
+    # (This logic will now correctly handle the error passed in final_outputs)
     final_outputs = []
     user_query = state.get("query", "").lower()
     

@@ -45,11 +45,16 @@ You must classify the query into one of two tool choices: "execute_edit" or "ans
 1.  **`tool_choice`: "execute_edit"**
     - Use this for any direct command to modify the video (e.g., "trim the video", "add a red filter", "cut the corners").
     - The `data` field must be a list of action objects.
+    - **IMPORTANT**: For sequential edits (multiple actions), use proper video_id chaining:
+      - First action: use the active_video_id
+      - Subsequent actions: use "{{result_of_step_N}}" where N is the step number
     - Example 1: "blur the video" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "apply_filter", "filter_description": "blur the video"}}]}}`
     - Example 2: "cut from 5 to 10 seconds" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "trim", "start_time": 5, "end_time": 10}}]}}`
     - Example 3: "crop the edges" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "apply_filter", "filter_description": "crop the edges"}}]}}`
-    - Example 4: "add captions saying 'hello world'" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "add_text", "text": "hello world", "start_time": 0, "duration": 5}}]}}`
-    - Example 5: "speed up the video by 2x" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "change_speed", "speed_factor": 2.0}}]}}`
+    - Example 4: "add captions saying 'hello world'" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "add_text", "video_id": "{active_video_id}", "text": "hello world", "start_time": 0, "duration": 5}}]}}`
+    - Example 5: "speed up the video by 2x" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "change_speed", "video_id": "{active_video_id}", "speed_factor": 2.0}}]}}`
+    - Example 6: "trim from 00:00 to 00:03 and then add a filter" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "trim", "video_id": "{active_video_id}", "start_time": 0, "end_time": 3}}, {{"action": "apply_filter", "video_id": "{{{{result_of_step_1}}}}", "filter_description": "add a filter"}}]}}`
+    - Example 7: "add a green filter, then trim till 00:03" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "apply_filter", "video_id": "{active_video_id}", "filter_description": "add a green filter"}}, {{"action": "trim", "video_id": "{{{{result_of_step_1}}}}", "start_time": 0, "end_time": 3}}]}}`
 
 
 2.  **`tool_choice`: "answer_question"**

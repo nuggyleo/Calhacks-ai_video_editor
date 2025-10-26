@@ -75,12 +75,29 @@ def add_text_to_video(active_video_id: str, media_bin: Dict[str, str], text: str
     """
     logger.info(f"--- TOOL: add_text_to_video starting ---")
     try:
+        from moviepy.config import get_setting
+        if not get_setting("IMAGEMAGICK_BINARY"):
+            logger.error("ImageMagick is not installed or configured.")
+            return "Error: ImageMagick is not installed. Please install it to add text to videos."
+
         video_path = resolve_video_path(active_video_id, media_bin)
-        logger.info(f"Resolved video path: {video_path}")
+        logger.info(f"Resolved video path for text addition: {video_path}")
         
         with VideoFileClip(video_path) as clip:
-            text_clip = TextClip(text, fontsize=fontsize, color=color).set_position(position).set_start(start_time).set_duration(duration)
+            logger.info(f"Video clip for text addition loaded successfully. Duration: {clip.duration}s")
+            
+            # Ensure the clip has a size, which is necessary for TextClip positioning
+            if clip.size is None:
+                raise ValueError("The video clip does not have a defined size.")
+            
+            logger.info(f"Clip size: {clip.size}")
+
+            text_clip = TextClip(txt=text, fontsize=fontsize, color=color, size=clip.size).set_position(position).set_start(start_time).set_duration(duration)
+            logger.info(f"Text clip created successfully.")
+
             final_clip = CompositeVideoClip([clip, text_clip])
+            logger.info(f"Composite clip created successfully.")
+
             output_path = get_output_path(video_path, "text_added")
 
             logger.info(f"Writing video with text to: {output_path}")
@@ -89,8 +106,8 @@ def add_text_to_video(active_video_id: str, media_bin: Dict[str, str], text: str
         logger.info(f"--- TOOL: add_text_to_video finished ---")
         return output_path
     except Exception as e:
-        logger.error(f"An unexpected error occurred in add_text_to_video: {e}")
-        return "Error: An unexpected error occurred while adding text to the video."
+        logger.error(f"An unexpected error occurred in add_text_to_video: {e}", exc_info=True)
+        return f"Error: An unexpected error occurred while adding text to the video: {str(e)}"
 
 @tool
 def apply_filter_to_video(active_video_id: str, media_bin: Dict[str, str], filter_description: str) -> str:

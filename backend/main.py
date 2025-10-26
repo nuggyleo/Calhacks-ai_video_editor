@@ -122,9 +122,10 @@ async def upload_media(file: UploadFile = File(...)):
         # Generate analysis for video files only
         description = ""
         if file.content_type and file.content_type.startswith('video/'):
-            print(f"Generating basic video metadata for: {file_path}")
-            description = get_video_analysis(str(file_path))
-            print("Basic metadata generated")
+            print(f"Video file uploaded: {file_path}")
+            # Vision analysis disabled - can be triggered manually later
+            # description = get_video_analysis(str(file_path))
+            description = ""
         elif file.content_type and file.content_type.startswith('audio/'):
             print(f"Audio file uploaded: {file_path}")
             description = f"Audio file: {file.filename}"

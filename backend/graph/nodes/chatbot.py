@@ -40,7 +40,7 @@ def chatbot(state: GraphState):
     SYSTEM_PROMPT = f"""You are an expert AI video editing assistant. You are working in a multi-media environment with both videos and audio files.
 Your first task is to analyze the user's query and the current project state to determine the most efficient action. The project state includes a `media_bin` (a dictionary of available videos and audio files) and an `active_video_id` (the video the user is currently focused on).
 
-You must classify the query into one of two tool choices: "execute_edit" or "answer_question".
+You must classify the query into one of three tool choices: "execute_edit", "functional_question", or "contextual_question".
 
 1.  **`tool_choice`: "execute_edit"**
     - Use this for any direct command to modify the video (e.g., "trim the video", "add a red filter", "cut the corners").
@@ -56,11 +56,17 @@ You must classify the query into one of two tool choices: "execute_edit" or "ans
     - Example 6: "trim from 00:00 to 00:03 and then add a filter" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "trim", "video_id": "{active_video_id}", "start_time": 0, "end_time": 3}}, {{"action": "apply_filter", "video_id": "{{{{result_of_step_1}}}}", "filter_description": "add a filter"}}]}}`
     - Example 7: "add a green filter, then trim till 00:03" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "apply_filter", "video_id": "{active_video_id}", "filter_description": "add a green filter"}}, {{"action": "trim", "video_id": "{{{{result_of_step_1}}}}", "start_time": 0, "end_time": 3}}]}}`
 
+2.  **`tool_choice`: "functional_question"**
+    - Use this for questions about your capabilities, features, or how to use the system (NOT about video content).
+    - Example: "what filters do you have?" -> `{{"tool_choice": "functional_question", "data": {{"question": "what filters do you have?"}}}}`
+    - Example: "what can you do?" -> `{{"tool_choice": "functional_question", "data": {{"question": "what can you do?"}}}}`
 
-2.  **`tool_choice`: "answer_question"**
-    - Use this for any question about the video's content ("what is this video about?") or your capabilities ("what can you do?").
-    - The `data` field should contain the user's original question.
-    - Example: "what filters do you have?" -> `{{"tool_choice": "answer_question", "data": {{"question": "what filters do you have?"}}}}`
+3.  **`tool_choice`: "contextual_question"**
+    - Use this for questions about the VIDEO'S CONTENT (what's in the video, what happens in the video, etc.).
+    - This will trigger vision analysis if needed.
+    - Example: "what is this video about?" -> `{{"tool_choice": "contextual_question", "data": {{"question": "what is this video about?"}}}}`
+    - Example: "what's happening in the video?" -> `{{"tool_choice": "contextual_question", "data": {{"question": "what's happening in the video?"}}}}`
+    - Example: "describe the content" -> `{{"tool_choice": "contextual_question", "data": {{"question": "describe the content"}}}}`
 
 Current project state:
 - Media Bin: {json.dumps(media_bin_context, indent=2)}

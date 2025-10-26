@@ -10,11 +10,11 @@ import { useAppStore } from '@/lib/store';
 import { useRouter } from 'next/navigation';
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
-  const { 
-    user, 
-    logout, 
-    currentProject, 
-    projects, 
+  const {
+    user,
+    logout,
+    currentProject,
+    projects,
     savedVideos,
     loadProjects,
     loadSavedVideos,
@@ -33,9 +33,10 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
   const [editingProjectName, setEditingProjectName] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Load projects on mount
   useEffect(() => {
     if (user) {
@@ -81,10 +82,10 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     // TODO: Save to backend
     setIsEditingName(false);
   };
-  
+
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
-    
+
     setIsCreatingProject(true);
     try {
       const project = await createProject(newProjectName.trim());
@@ -97,54 +98,54 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       setIsCreatingProject(false);
     }
   };
-  
+
   const handleSwitchProject = async (projectId: number) => {
     await switchProject(projectId);
     setShowProjectsModal(false);
     setShowUserMenu(false);
   };
-  
+
   const handleRenameProject = async (projectId: number) => {
     if (!editingProjectName.trim() || !user) return;
-    
+
     try {
       await fetch(`http://localhost:8000/api/projects/${projectId}?user_email=${user.email}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editingProjectName.trim() })
       });
-      
+
       // Update local state
-      const updatedProjects = projects.map(p => 
+      const updatedProjects = projects.map(p =>
         p.id === projectId ? { ...p, name: editingProjectName.trim() } : p
       );
-      useAppStore.setState({ 
+      useAppStore.setState({
         projects: updatedProjects,
-        currentProject: currentProject?.id === projectId 
+        currentProject: currentProject?.id === projectId
           ? { ...currentProject, name: editingProjectName.trim() }
           : currentProject
       });
-      
+
       setEditingProjectId(null);
       setEditingProjectName('');
     } catch (error) {
       console.error('Failed to rename project:', error);
     }
   };
-  
+
   const handleDeleteProject = async (projectId: number) => {
     if (!user) return;
     if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) return;
-    
+
     try {
       const response = await fetch(`http://localhost:8000/api/projects/${projectId}?user_email=${user.email}`, {
         method: 'DELETE'
       });
-      
+
       if (response.ok) {
         const updatedProjects = projects.filter(p => p.id !== projectId);
         useAppStore.setState({ projects: updatedProjects });
-        
+
         // If deleted current project, switch to first available or create new
         if (currentProject?.id === projectId) {
           if (updatedProjects.length > 0) {
@@ -159,15 +160,15 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       console.error('Failed to delete project:', error);
     }
   };
-  
+
   // Auto-save current project periodically
   useEffect(() => {
     if (!currentProject) return;
-    
+
     const interval = setInterval(() => {
       saveCurrentProject();
     }, 30000); // Save every 30 seconds
-    
+
     return () => clearInterval(interval);
   }, [currentProject, saveCurrentProject]);
 
@@ -182,13 +183,13 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           {currentProject && (
             <div className="flex items-center gap-2 text-sm text-gray-400 border-l border-gray-700 pl-4">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
               </svg>
               <span className="text-white font-medium">{currentProject.name}</span>
             </div>
           )}
         </div>
-        
+
         <div className="flex items-center gap-4">
           {/* User Menu */}
           <div className="relative" ref={menuRef}>
@@ -229,9 +230,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                         title="Upload photo"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                          <polyline points="17 8 12 3 7 8"/>
-                          <line x1="12" x2="12" y1="3" y2="15"/>
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" x2="12" y1="3" y2="15" />
                         </svg>
                       </button>
                       <input
@@ -262,7 +263,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                             title="Edit name"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                             </svg>
                           </button>
                         </div>
@@ -280,7 +281,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                     >
                       <div className="flex items-center gap-3">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                         </svg>
                         <span>My Projects</span>
                       </div>
@@ -298,9 +299,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                     >
                       <div className="flex items-center gap-3">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                          <polyline points="17 21 17 13 7 13 7 21"/>
-                          <polyline points="7 3 7 8 15 8"/>
+                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                          <polyline points="17 21 17 13 7 13 7 21" />
+                          <polyline points="7 3 7 8 15 8" />
                         </svg>
                         <span>Saved Videos</span>
                       </div>
@@ -312,9 +313,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                       onClick={handleLogout}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                        <polyline points="16 17 21 12 16 7"/>
-                        <line x1="21" x2="9" y1="12" y2="12"/>
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" x2="9" y1="12" y2="12" />
                       </svg>
                       <span>Log Out</span>
                     </button>
@@ -334,7 +335,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <div className="bg-gray-800 px-6 py-4 border-b border-gray-700 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
                 <h2 className="text-xl font-semibold text-white">My Projects</h2>
               </div>
@@ -343,12 +344,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             </div>
-            
+
             {/* Content */}
             <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
               {/* Create New Project */}
@@ -370,19 +371,19 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                     className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-6 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19"/>
-                      <line x1="5" y1="12" x2="19" y2="12"/>
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
                     {isCreatingProject ? 'Creating...' : 'Create'}
                   </button>
                 </div>
               </div>
-              
+
               {/* Project List */}
               {projects.length === 0 ? (
                 <div className="text-center py-12">
                   <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600 mx-auto mb-4">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                   </svg>
                   <p className="text-gray-400 text-lg">No projects yet</p>
                   <p className="text-gray-600 text-sm mt-2">Create your first project above</p>
@@ -392,11 +393,19 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                   {projects.map((project) => (
                     <div
                       key={project.id}
-                      className={`p-4 rounded-lg border transition-all ${
-                        currentProject?.id === project.id
-                          ? 'bg-purple-600/20 border-purple-500'
-                          : 'bg-gray-800 border-gray-700 hover:border-gray-600'
-                      }`}
+                      onClick={() => {
+                        // If the clicked project is already selected, open it.
+                        if (selectedProjectId === project.id) {
+                          handleSwitchProject(project.id);
+                        } else {
+                          // Otherwise, just highlight it.
+                          setSelectedProjectId(project.id);
+                        }
+                      }}
+                      className={`p-4 rounded-lg border transition-all cursor-pointer ${selectedProjectId === project.id
+                        ? 'bg-purple-600/20 border-purple-500' // This is the highlighted project
+                        : 'bg-gray-800 border-gray-700 hover:border-gray-600' // All others are default
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         {/* Project Name */}
@@ -420,7 +429,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                           ) : (
                             <>
                               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 flex-shrink-0">
-                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                               </svg>
                               <div className="flex-1">
                                 <h3 className="text-white font-medium">{project.name}</h3>
@@ -429,31 +438,20 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                                 </p>
                               </div>
                               {currentProject?.id === project.id && (
-                                <span className="px-2 py-1 bg-purple-600 text-white text-xs rounded font-medium">
+                                <span className="px-2 py-1 bg-gray-600 text-white text-xs rounded font-medium ml-auto">
                                   Current
                                 </span>
                               )}
                             </>
                           )}
                         </div>
-                        
+
                         {/* Actions */}
                         {editingProjectId !== project.id && (
                           <div className="flex items-center gap-2 ml-4">
-                            {currentProject?.id !== project.id && (
-                              <button
-                                onClick={() => handleSwitchProject(project.id)}
-                                className="text-gray-400 hover:text-purple-400 transition-colors p-2"
-                                title="Switch to this project"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="9 14 4 9 9 4"/>
-                                  <path d="M20 20v-7a4 4 0 0 0-4-4H4"/>
-                                </svg>
-                              </button>
-                            )}
                             <button
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent the div's onClick from firing
                                 setEditingProjectId(project.id);
                                 setEditingProjectName(project.name);
                               }}
@@ -461,17 +459,20 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                               title="Rename project"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                               </svg>
                             </button>
                             <button
-                              onClick={() => handleDeleteProject(project.id)}
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent the div's onClick from firing
+                                handleDeleteProject(project.id);
+                              }}
                               className="text-gray-400 hover:text-red-400 transition-colors p-2"
                               title="Delete project"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="3 6 5 6 21 6"/>
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                               </svg>
                             </button>
                           </div>
@@ -498,9 +499,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <div className="bg-gray-800 px-6 py-4 border-b border-gray-700 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
-                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                  <polyline points="17 21 17 13 7 13 7 21"/>
-                  <polyline points="7 3 7 8 15 8"/>
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                  <polyline points="17 21 17 13 7 13 7 21" />
+                  <polyline points="7 3 7 8 15 8" />
                 </svg>
                 <h2 className="text-xl font-semibold text-white">Saved Videos</h2>
                 <span className="text-sm text-gray-400">(Global Collection)</span>
@@ -511,20 +512,20 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             </div>
-            
+
             {/* Content */}
             <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
               {savedVideos.length === 0 ? (
                 <div className="text-center py-12">
                   <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600 mx-auto mb-4">
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                    <polyline points="17 21 17 13 7 13 7 21"/>
-                    <polyline points="7 3 7 8 15 8"/>
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
                   </svg>
                   <p className="text-gray-400 text-lg">No saved videos yet</p>
                   <p className="text-gray-600 text-sm mt-2">Videos you save will appear here</p>
@@ -534,8 +535,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                   {savedVideos.map((video) => (
                     <div key={video.id} className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden hover:border-purple-500 transition-colors group">
                       <div className="aspect-video bg-gray-900 flex items-center justify-center relative">
-                        <video 
-                          src={video.url} 
+                        <video
+                          src={video.url}
                           className="w-full h-full object-cover"
                           preload="metadata"
                         />
@@ -548,7 +549,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                             title="Open"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polygon points="5 3 19 12 5 21 5 3"/>
+                              <polygon points="5 3 19 12 5 21 5 3" />
                             </svg>
                           </a>
                         </div>

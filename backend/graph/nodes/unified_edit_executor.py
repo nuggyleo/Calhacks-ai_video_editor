@@ -211,7 +211,14 @@ Example: [{{"action": "trim", "video_id": "original_video_id", "start_time": 0, 
             video_id=video_id, audio_id=audio_id, media_bin=media_bin
         )
 
-    tools = [trim_video, add_text_to_video, apply_filter_to_video, change_video_speed, concatenate_videos, extract_audio, add_audio_to_video]
+    @tool
+    def extract_and_add_audio(source_video_id: str, destination_video_id: str) -> str:
+        """Extracts audio from one video and adds it to another."""
+        return video_tools.extract_and_add_audio.func(
+            source_video_id=source_video_id, destination_video_id=destination_video_id, media_bin=media_bin
+        )
+
+    tools = [trim_video, add_text_to_video, apply_filter_to_video, change_video_speed, concatenate_videos, extract_audio, add_audio_to_video, extract_and_add_audio]
 
     # Check if this is a multi-step task
     is_multi_step = len(edit_actions) > 1
@@ -279,7 +286,8 @@ Example: [{{"action": "trim", "video_id": "original_video_id", "start_time": 0, 
             'extract_audio': 'extract_audio',
             'add_audio_to_video': 'add_audio_to_video',
             'add_audio': 'add_audio_to_video',  # Support both
-            'merge_audio': 'add_audio_to_video' # Add mapping for merge_audio
+            'merge_audio': 'add_audio_to_video', # Add mapping for merge_audio
+            'extract_and_add_audio': 'extract_and_add_audio'
         }
         
         tool_name = action_to_tool.get(action_name, action_name)
@@ -344,6 +352,12 @@ Example: [{{"action": "trim", "video_id": "original_video_id", "start_time": 0, 
                 result_path = video_tools.add_audio_to_video.func(
                     video_id=tool_args['video_id'],
                     audio_id=tool_args['audio_id'],
+                    media_bin=temp_media_bin
+                )
+            elif action_name == 'extract_and_add_audio':
+                result_path = video_tools.extract_and_add_audio.func(
+                    source_video_id=tool_args['source_video_id'],
+                    destination_video_id=tool_args['destination_video_id'],
                     media_bin=temp_media_bin
                 )
             else:

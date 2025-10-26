@@ -42,10 +42,19 @@ def edit_query_parser(state: GraphState):
 1.  **Multi-Video Command:** If the user says "each video," "all videos," or "every video," generate an action for EACH video in the media bin.
 2.  **Single-Video Command:** Otherwise, all actions apply to the active video.
 
+**Combo Action Recognition:**
+- If the user asks to take audio from one video and add it to another, this is a SINGLE action.
+- Your output should be one combined instruction, like "extract audio from video A and add it to video B".
+- Do NOT break this into separate "extract" and "add" steps.
+
 **Response Format:**
 - Your output MUST be a JSON object with a single key "actions" containing a list of strings.
 - Each string in the list is one simple, clear instruction for the next AI.
 - For sequential actions, you MUST explicitly reference the output of the PREVIOUS step (e.g., "apply a green filter to the result of step 1", "add fade out to the result of step 2"). DO NOT reference older steps in the chain unless absolutely necessary.
+
+**CRITICAL RULE:**
+- You MUST use the descriptive filenames (e.g., 'my_vacation.mp4', 'intro_audio.mp3') from the Media Bin context when referring to files.
+- Do NOT use the long, random-looking media IDs in your output.
 
 **Context:**
 - **User Command:** "{user_command}"
@@ -81,6 +90,15 @@ def edit_query_parser(state: GraphState):
      "concatenate video A and video B",
      "add a fade in to the result of step 1",
      "add a fade out to the result of step 2"
+   ]
+ }}
+
+**Example 4 (Combo Action):**
+- User Command: "Take the audio from 'intro.mp4' and add it to 'main_video.mp4'."
+- **Your JSON Output:**
+ {{
+   "actions": [
+     "extract the audio from 'intro.mp4' and add it to 'main_video.mp4'"
    ]
  }}
 

@@ -135,6 +135,25 @@ const MessageList = () => {
                           controls
                           className="w-full"
                         />
+                        {/* --- NEW: Add to Media button for each video in the grid --- */}
+                        <button
+                          onClick={() => {
+                            const urlLower = url.toLowerCase();
+                            const isAudio = urlLower.includes('.mp3') || urlLower.includes('.wav') || urlLower.includes('.m4a') || urlLower.includes('.aac') || urlLower.includes('extracted_audio');
+                            const mediaType = isAudio ? 'audio' : 'video';
+                            const urlFilename = url.split('/').pop() || '';
+                            const filename = urlFilename || `${mediaType}-${Date.now()}.${mediaType === 'audio' ? 'mp3' : 'mp4'}`;
+                            addEditedMediaToLibrary(url, filename, mediaType);
+                          }}
+                          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-3 py-1.5 rounded-b-lg text-xs font-medium transition-all"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                          </svg>
+                          Add to Media
+                        </button>
                       </div>
                     ))}
                   </div>

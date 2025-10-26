@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Optional
+import re
 
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.tools import tool
@@ -121,50 +122,85 @@ Now, generate the single JSON tool call for the instruction.
 
             if tool_name in tool_map:
                 tool_function = tool_map[tool_name]
-                result_path = tool_function.invoke(tool_args) # Use .invoke for langchain tools
+                # This function invokes the tool and handles the result.
+                result_from_tool = tool_function.invoke(tool_args)
+
+                # --- Robust Result Handling ---
+                result_path = None
+                if tool_function.name == "extract_audio":
+                    try:
+                        audio_info = json.loads(result_from_tool)
+                        result_path = audio_info["output_path"]
+                        new_audio_id = audio_info["audio_id"]
+                        temp_media_bin[new_audio_id] = result_path # Manually update the media bin
+                        logger.info(f"Handled extract_audio output. Path: {result_path}, New ID: {new_audio_id}")
+                    except (json.JSONDecodeError, KeyError):
+                        logger.error(f"Could not parse result from extract_audio: {result_from_tool}")
+                        result_path = result_from_tool # Fallback
+                else:
+                    # For all other tools, the result is assumed to be a direct file path
+                    result_path = result_from_tool
+
+
+                # Store result for future steps
+                temp_id = f"temp_result_{step_idx}"
+                results[step_idx + 1] = result_path # Always store the path
+                temp_media_bin[temp_id] = result_path # Always map the temp ID to the path
+
+                logger.info(f"Step {step_idx + 1} completed. Result: {result_path}")
+                
+                is_dependency = any(f"step {step_idx + 1}" in act for act in nl_actions[step_idx+1:])
+                if not is_dependency:
+                    final_outputs.append(result_path)
+
             else:
                 raise ValueError(f"Unknown tool: {tool_name}")
 
-            logger.info(f"Step {step_idx + 1} completed. Result: {result_path}")
-            
-            results[step_idx + 1] = result_path
-            
-            is_dependency = any(f"step {step_idx + 1}" in act for act in nl_actions[step_idx+1:])
-            if not is_dependency:
-                final_outputs.append(result_path)
-
         except Exception as e:
-            logger.error(f"Error executing action for instruction '{instruction}': {e}", exc_info=True)
+            logger.error(f"An error occurred during tool execution: {e}")
+            # Optionally, you can add the error to the state to be surfaced to the user
             return {**state, "error": f"Error during editing: {e}"}
 
-    # --- Identify the final output(s) ---
-    is_concatenation_workflow = any("concatenate" in action.lower() for action in nl_actions)
+    # --- Definitive Final Output Logic v2 ---
+    final_outputs = []
+    user_query = state.get("query", "").lower()
+    
+    # Check for explicit user intent for a single video output.
+    # Also, any concatenation implies a single final video.
+    wants_single_video = "single video" in user_query or \
+                         "a video" in user_query or \
+                         "one video" in user_query or \
+                         any("concatenate" in action.lower() for action in nl_actions)
 
-    if is_concatenation_workflow:
-        # If it's a concatenation workflow, only the last result is the final output.
-        last_step = max(results.keys())
-        final_outputs = [results[last_step]]
+    if wants_single_video:
+        # If the user's intent is a single video, the final output is ALWAYS the result of the last step.
+        if results:
+            last_step = max(results.keys())
+            final_outputs.append(results[last_step])
     else:
-        # For parallel edits, any result that wasn't an input to another step is a final output.
-        all_input_ids = set()
-        for step, instruction in enumerate(nl_actions, 1):
-            for i in range(1, step):
-                if f"result of step {i}" in instruction or f"temp_result_{i}" in instruction:
-                    all_input_ids.add(i)
-        
-        for step, result_path in results.items():
-            if step not in all_input_ids:
-                final_outputs.append(result_path)
-
-    if not final_outputs:
+        # Otherwise, for parallel/batch operations, use the dependency graph to find all
+        # outputs that are not used as inputs by subsequent steps.
         if results:
-            final_outputs.append(results[max(results.keys())])
+            input_steps = set()
+            for instruction in nl_actions:
+                matches = re.findall(r"result of step (\d+)", instruction)
+                for match in matches:
+                    input_steps.add(int(match))
 
-    if not final_outputs:
-        if results:
-            final_outputs.append(results[max(results.keys())])
-        else:
-            return {**state, "messages": [AIMessage(content="No final output was generated.")]}
+            for step_num, result_path in results.items():
+                if step_num not in input_steps:
+                    final_outputs.append(result_path)
+            
+            # Failsafe: if for some reason the above yields nothing, take the last result.
+            if not final_outputs and results:
+                last_step = max(results.keys())
+                final_outputs.append(results[last_step])
+
+    if not final_outputs and results:
+        final_outputs.append(results[max(results.keys())])
+    elif not final_outputs:
+        # Handle case where no edits were made or failed
+        return {**state, "messages": [AIMessage(content="No final output was generated.")]}
 
     # --- FINAL RESPONSE ---
     # The `output_files` field will now be populated for the frontend to render.

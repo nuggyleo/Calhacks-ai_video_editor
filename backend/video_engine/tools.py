@@ -174,7 +174,8 @@ def change_video_speed(active_video_id: str, media_bin: Dict[str, str], speed_fa
 def extract_audio(active_video_id: str, media_bin: Dict[str, str]) -> str:
     """
     Extracts the audio track from a video and saves it as an MP3 file.
-    It adds the new audio file to the media bin and returns the new audio_id.
+    It adds the new audio file to the media bin.
+    It returns a JSON string containing the new 'audio_id' and its 'output_path'.
     """
     logger.info(f"--- TOOL: extract_audio starting ---")
     video_path = resolve_video_path(active_video_id, media_bin)
@@ -197,8 +198,11 @@ def extract_audio(active_video_id: str, media_bin: Dict[str, str]) -> str:
         logger.info(f"Added new audio '{audio_id}' to media bin.")
         
     logger.info(f"--- TOOL: extract_audio finished ---")
-    # 3. Return the new audio_id
-    return audio_id
+    # 3. Return both the ID and path for robust handling
+    return json.dumps({
+        "audio_id": audio_id,
+        "output_path": output_path
+    })
 
 @tool
 def add_audio_to_video(video_id: str, audio_id: str, media_bin: Dict[str, str]) -> str:
@@ -258,38 +262,50 @@ def concatenate_videos(video_ids: List[str], media_bin: Dict[str, str]) -> str:
             raise ValueError(f"Could not find video paths for the following IDs: {missing_ids}")
 
         logger.info(f"Resolved video paths: {video_paths}")
-
-        # Load clips into moviepy objects
+        
         moviepy_clips = [VideoFileClip(path) for path in video_paths]
-
-        # --- NEW: Intelligent resizing with padding to preserve quality ---
-        # 1. Find the maximum resolution among all clips
+        
+        # --- FIX: Standardize FPS to prevent 'video_fps' KeyError ---
+        # Use the FPS of the first clip as the target for all clips.
+        target_fps = moviepy_clips[0].fps
+        if not target_fps:
+            logger.warning("First clip has no FPS, defaulting to 24.")
+            target_fps = 24 # A common default
+            
+        logger.info(f"Standardizing all clips to target FPS: {target_fps}")
+        for i, clip in enumerate(moviepy_clips):
+            if clip.fps != target_fps:
+                logger.info(f"Clip {i} has FPS {clip.fps}, resampling to {target_fps}.")
+                clip.fps = target_fps
+        # --- End of FPS fix ---
+        
+        # --- Resizing logic for clips of different sizes ---
+        # Find the maximum resolution among all clips for padding
         max_width = max(clip.w for clip in moviepy_clips)
         max_height = max(clip.h for clip in moviepy_clips)
         target_size = (max_width, max_height)
-        logger.info(f"Standardizing all clips to max resolution: {target_size} by padding smaller clips.")
-
-        # 2. Add padding to smaller clips to match the max resolution
+        
         processed_clips = []
-        for clip in moviepy_clips:
-            if clip.size != target_size:
-                # Create a black background clip of the target size
-                background = ColorClip(size=target_size, color=(0,0,0), duration=clip.duration)
-                # Place the original clip in the center of the background
-                padded_clip = CompositeVideoClip([background, clip.set_position('center')])
-                processed_clips.append(padded_clip)
-            else:
-                processed_clips.append(clip)
+        # Check if resizing is necessary
+        is_resizing_needed = any(clip.size != target_size for clip in moviepy_clips)
 
-        # 3. Trim end frames to prevent glitches (still a good practice)
-        final_clips = [clip.subclip(0, clip.duration - 0.05) for clip in processed_clips]
-        # --- End of new logic ---
+        if is_resizing_needed:
+            logger.info(f"Clips have different resolutions. Resizing and padding to target {target_size}.")
+            for clip in moviepy_clips:
+                if clip.size != target_size:
+                    padded_clip = CompositeVideoClip([ColorClip(size=target_size, color=(0,0,0), duration=clip.duration), clip.set_position('center')])
+                    processed_clips.append(padded_clip)
+                else:
+                    processed_clips.append(clip)
+        else:
+            logger.info("All clips have the same resolution. No resizing needed.")
+            processed_clips = moviepy_clips
 
         output_path = get_output_path(video_paths[0], "concatenated")
-
         logger.info(f"Writing concatenated video to: {output_path}")
-        final_clip = concatenate_videoclips(final_clips, method="compose")
-        final_clip.write_videofile(output_path, codec="libx264", logger='bar')
+        final_clip = concatenate_videoclips(processed_clips, method="compose")
+        # Added performance flags: preset='ultrafast' and threads=8
+        final_clip.write_videofile(output_path, codec="libx264", logger='bar', preset='ultrafast', threads=8)
         
         logger.info(f"--- TOOL: concatenate_videos finished ---")
         return output_path

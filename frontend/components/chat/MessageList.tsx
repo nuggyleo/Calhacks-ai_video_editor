@@ -19,20 +19,21 @@ const MessageList = () => {
 
   const activeVideo = mediaBin.find(f => f.id === activeVideoId);
 
-  // Auto-inject AI description
-  useEffect(() => {
-    if (!activeVideoId) return;
-    const hasAiDesc = messages.some(m => m.id === `ai-desc-${activeVideoId}`);
-    if (!hasAiDesc && activeVideo?.description) {
-      addMessage({
-        id: `ai-desc-${activeVideoId}`,
-        role: 'assistant',
-        content: `**Video Analysis for ${activeVideo.filename}:**\n\n${activeVideo.description}`,
-        timestamp: new Date(),
-        status: 'completed',
-      });
-    }
-  }, [activeVideoId, activeVideo?.description, addMessage]); // Simplified dependencies
+  // Auto-inject AI description - DISABLED
+  // Vision analysis is now triggered manually, not automatically on upload
+  // useEffect(() => {
+  //   if (!activeVideoId) return;
+  //   const hasAiDesc = messages.some(m => m.id === `ai-desc-${activeVideoId}`);
+  //   if (!hasAiDesc && activeVideo?.description) {
+  //     addMessage({
+  //       id: `ai-desc-${activeVideoId}`,
+  //       role: 'assistant',
+  //       content: `**Video Analysis for ${activeVideo.filename}:**\n\n${activeVideo.description}`,
+  //       timestamp: new Date(),
+  //       status: 'completed',
+  //     });
+  //   }
+  // }, [activeVideoId, activeVideo?.description, addMessage]);
 
   // Auto-scroll
   useEffect(() => {

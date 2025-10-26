@@ -124,7 +124,24 @@ const MessageList = () => {
               <div className={`max-w-md px-4 py-3 rounded-2xl backdrop-blur-sm ${message.role === 'user' ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg' : 'bg-gray-800/80 text-gray-100 border border-gray-700/50'}`}>
                 {/* Message Content, Video, Buttons etc. go here, structured cleanly */}
                 <div className="prose prose-invert prose-sm max-w-none break-words whitespace-pre-wrap">{message.content}</div>
-                {message.videoUrl && (
+
+                {/* --- NEW: Multi-video grid --- */}
+                {message.videoUrls && message.videoUrls.length > 0 && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {message.videoUrls.map((url, index) => (
+                      <div key={index} className="rounded-lg overflow-hidden border border-gray-600">
+                        <video
+                          src={url}
+                          controls
+                          className="w-full"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* --- Existing single video player --- */}
+                {message.videoUrl && !message.videoUrls && (
                   <div className="mt-3 space-y-2">
                     <div className="rounded-lg overflow-hidden border border-gray-600">
                       {(() => {

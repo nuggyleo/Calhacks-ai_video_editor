@@ -22,7 +22,7 @@ const CommandInput = () => {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
-      
+
       const deltaY = dragStartY.current - e.clientY; // Inverted: dragging up increases height
       const newHeight = Math.min(Math.max(dragStartHeight.current + deltaY, 60), 400); // Min 60px, max 400px
       setHeight(newHeight);
@@ -134,31 +134,42 @@ const CommandInput = () => {
       const result = await response.json();
       console.log('Backend result:', result);
 
-      const fullUrl = result.output_url ? `http://localhost:8000${result.output_url}` : undefined;
       const messageContent = result.message || 'I received a response, but it was empty.';
-      const mediaType = result.media_type || 'video'; // Get media type from backend
-      const mediaFilename = result.filename || undefined;
 
-      console.log('Parsed response:', { fullUrl, messageContent, mediaType, mediaFilename });
+      // --- NEW: Handle multiple video URLs ---
+      const outputUrls = result.output_urls?.map((url: string) => `http://localhost:8000${url}`) || [];
 
-      // --- Update message with media result (video or audio) ---
-      if (fullUrl && activeVideoId) {
-        // Just update the message with the result, don't modify mediaBin
+      if (outputUrls.length > 0) {
         updateMessage(assistantMessageId, {
           content: messageContent,
           status: 'completed',
           timestamp: new Date(),
-          videoUrl: fullUrl, // This can be either video or audio URL
-          mediaType: mediaType,
-          mediaFilename: mediaFilename,
+          videoUrls: outputUrls, // Use the new videoUrls property
         });
       } else {
-        // If there's no new media, just update the message text.
-        updateMessage(assistantMessageId, {
-          content: messageContent,
-          status: 'completed',
-          timestamp: new Date(),
-        });
+        // --- Fallback to single video URL for backward compatibility ---
+        const fullUrl = result.output_url ? `http://localhost:8000${result.output_url}` : undefined;
+        const mediaType = result.media_type || 'video';
+        const mediaFilename = result.filename || undefined;
+
+        console.log('Parsed single response:', { fullUrl, messageContent, mediaType, mediaFilename });
+
+        if (fullUrl && activeVideoId) {
+          updateMessage(assistantMessageId, {
+            content: messageContent,
+            status: 'completed',
+            timestamp: new Date(),
+            videoUrl: fullUrl,
+            mediaType: mediaType,
+            mediaFilename: mediaFilename,
+          });
+        } else {
+          updateMessage(assistantMessageId, {
+            content: messageContent,
+            status: 'completed',
+            timestamp: new Date(),
+          });
+        }
       }
 
     } catch (error) {
@@ -178,9 +189,8 @@ const CommandInput = () => {
       {/* Resize handle at the top */}
       <div
         onMouseDown={handleMouseDown}
-        className={`absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-blue-500/20 transition-colors z-10 flex items-center justify-center ${
-          isDragging ? 'bg-blue-500/30' : ''
-        }`}
+        className={`absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-blue-500/20 transition-colors z-10 flex items-center justify-center ${isDragging ? 'bg-blue-500/30' : ''
+          }`}
         title="Drag to resize"
       >
         <div className="w-12 h-1 bg-gray-600 rounded-full" />

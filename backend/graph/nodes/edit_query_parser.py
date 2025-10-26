@@ -45,7 +45,7 @@ def edit_query_parser(state: GraphState):
 **Response Format:**
 - Your output MUST be a JSON object with a single key "actions" containing a list of strings.
 - Each string in the list is one simple, clear instruction for the next AI.
-- For sequential actions, explicitly reference the output of the previous step (e.g., "apply a green filter to the result of step 1").
+- For sequential actions, you MUST explicitly reference the output of the PREVIOUS step (e.g., "apply a green filter to the result of step 1", "add fade out to the result of step 2"). DO NOT reference older steps in the chain unless absolutely necessary.
 
 **Context:**
 - **User Command:** "{user_command}"
@@ -54,11 +54,12 @@ def edit_query_parser(state: GraphState):
 
 **Example 1:**
 - User Command: "Trim all videos from 4 seconds to 8 seconds."
+- (Assuming the Media Bin contains videos with filenames "vid1.mp4" and "vid2.mp4")
 - **Your JSON Output:**
   {{
     "actions": [
-      "trim video '{media_bin_context['video1_id']['filename']}' from 4 seconds to 8 seconds",
-      "trim video '{media_bin_context['video2_id']['filename']}' from 4 seconds to 8 seconds"
+      "trim video 'vid1.mp4' from 4 seconds to 8 seconds",
+      "trim video 'vid2.mp4' from 4 seconds to 8 seconds"
     ]
   }}
 
@@ -71,6 +72,17 @@ def edit_query_parser(state: GraphState):
       "apply a green filter to the result of step 1"
     ]
   }}
+         
+**Example 3 (Complex Chain):**
+- User Command: "Concatenate video A and video B, then add a fade in, then add a fade out."
+- **Your JSON Output:**
+ {{
+   "actions": [
+     "concatenate video A and video B",
+     "add a fade in to the result of step 1",
+     "add a fade out to the result of step 2"
+   ]
+ }}
 
 Now, generate the JSON output for the user's command.
 """

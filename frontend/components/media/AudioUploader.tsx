@@ -109,7 +109,7 @@ const AudioUploader = () => {
         onDrop={handleDrop}
         onClick={handleClick}
         className={`
-          border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
+          border-2 border-dashed rounded-lg p-3 text-center cursor-pointer
           transition-all duration-200
           ${isDragging
             ? 'border-purple-500 bg-purple-500/10'
@@ -139,8 +139,7 @@ const AudioUploader = () => {
           </div>
         ) : (
           <div>
-            <p className="text-gray-300 text-base mb-1">🎵 Drag & Drop Audio Here</p>
-            <p className="text-xs text-gray-500">or click to browse</p>
+            <p className="text-gray-300 text-lg">🎵 Upload Audio</p>
           </div>
         )}
       </div>

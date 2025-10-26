@@ -131,7 +131,7 @@ const FileUploader = ({
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
         className={`
-          border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
+          border-2 border-dashed rounded-lg p-3 text-center cursor-pointer
           transition-all duration-200
           ${isDragging
             ? 'border-blue-500 bg-blue-500/10'
@@ -162,8 +162,7 @@ const FileUploader = ({
           </div>
         ) : (
           <div>
-            <p className="text-gray-300 text-lg mb-2">📹 {title}</p>
-            <p className="text-sm text-gray-500">or click to browse</p>
+            <p className="text-gray-300 text-lg">📹 {title}</p>
           </div>
         )}
       </div>

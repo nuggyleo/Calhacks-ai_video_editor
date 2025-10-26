@@ -238,15 +238,27 @@ async def edit_video(request: EditCommandRequest):
         final_message = result.get("messages", [])[-1]
         message_content = final_message.content
         
-        # Check if the final message contains a video output URL
-        output_url = final_message.additional_kwargs.get("output_url", None)
+        # --- NEW: Check for multiple output URLs first ---
+        output_urls = final_message.additional_kwargs.get("output_urls", None)
+        
+        # Fallback to single URL for backward compatibility
+        if not output_urls:
+            single_url = final_message.additional_kwargs.get("output_url", None)
+            output_urls = [single_url] if single_url else None
+            
+        # Get media type and filename for single video case (may need adjustment for multi-video)
+        media_type = final_message.additional_kwargs.get("media_type", "video")
+        filename = final_message.additional_kwargs.get("filename", None)
 
         response = {
             "status": "completed",
-            "video_id": request.active_video_id, # Use active_video_id from the request
+            "video_id": request.active_video_id,
             "command": request.command,
             "message": message_content,
-            "output_url": output_url,
+            "output_urls": output_urls, # Use the new list format
+            "output_url": output_urls[0] if output_urls else None, # Keep for single-video case
+            "media_type": media_type,
+            "filename": filename,
             "request_id": str(uuid.uuid4())
         }
         

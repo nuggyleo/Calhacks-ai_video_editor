@@ -29,6 +29,7 @@ export interface ChatMessage {
   timestamp: Date;
   status?: 'pending' | 'completed' | 'error';
   videoUrl?: string; // Optional video/audio URL for editing results
+  videoUrls?: string[]; // New: For multiple video outputs
   mediaType?: 'video' | 'audio'; // Type of media result
   mediaFilename?: string; // Filename for the result
 }
@@ -77,13 +78,13 @@ interface AppState {
   isAuthenticated: boolean;
   user: { email: string } | null;
   token: string | null;
-  
+
   // Project Management
   currentProject: Project | null;
   projects: Project[];
   savedVideos: SavedVideo[];
   isProjectLoading: boolean;
-  
+
   // Actions
   addMediaFile: (file: Omit<MediaFile, 'versionHistory' | 'redoHistory'>) => void;
   setActiveVideoId: (id: string) => void;
@@ -106,14 +107,14 @@ interface AppState {
   login: (user: { email: string }, token: string) => void;
   logout: () => void;
   setAuthStatus: (status: 'authenticated' | 'unauthenticated') => void;
-  
+
   // Project Management Actions
   loadProjects: () => Promise<void>;
   createProject: (name: string) => Promise<Project>;
   switchProject: (projectId: number) => Promise<void>;
   saveCurrentProject: () => Promise<void>;
   deleteProject: (projectId: number) => Promise<void>;
-  
+
   // Saved Videos Actions
   saveVideo: (videoUrl: string, filename: string, description?: string) => Promise<void>;
   loadSavedVideos: () => Promise<void>;
@@ -138,8 +139,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   projects: [],
   savedVideos: [],
   isProjectLoading: false,
-  
-  addMediaFile: (file) => 
+
+  addMediaFile: (file) =>
     set((state) => {
       const newFile: MediaFile = {
         ...file,
@@ -347,14 +348,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userEmail');
-    set({ 
-      isAuthenticated: false, 
-      user: null, 
-      token: null, 
-      authStatus: 'unauthenticated', 
-      activeVideoId: null, 
+    set({
+      isAuthenticated: false,
+      user: null,
+      token: null,
+      authStatus: 'unauthenticated',
+      activeVideoId: null,
       activeAudioId: null,
-      mediaBin: [], 
+      mediaBin: [],
       currentProject: null,
       projects: [],
       savedVideos: [],
@@ -369,36 +370,36 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
   setAuthStatus: (status) => set({ authStatus: status }),
-  
+
   // ==================== PROJECT MANAGEMENT ====================
-  
+
   loadProjects: async () => {
-      set({ isProjectLoading: true });
-      const { user } = get();
-      if (!user) {
-        console.error('No user logged in');
-        return;
-      }
-      
-      try {
-        const response = await fetch(`${API_URL}/api/projects/?user_email=${encodeEmail(user.email)}`);
+    set({ isProjectLoading: true });
+    const { user } = get();
+    if (!user) {
+      console.error('No user logged in');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/projects/?user_email=${encodeEmail(user.email)}`);
       if (response.ok) {
         let projects = await response.json();
-        
+
         // If user has no projects, create a default one
         if (projects.length === 0) {
           console.log('No projects found, creating default project...');
           const defaultProject = await get().createProject('My First Project');
           projects = [defaultProject];
         }
-        
+
         set({ projects });
-        
+
         // If no current project and user has projects, load the first one
         if (!get().currentProject && projects.length > 0) {
           await get().switchProject(projects[0].id);
         }
-        
+
         // Load saved videos (global, not per-project)
         await get().loadSavedVideos();
       }
@@ -408,11 +409,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ isProjectLoading: false });
     }
   },
-  
+
   createProject: async (name: string) => {
     const { user } = get();
     if (!user) throw new Error('User not authenticated');
-    
+
     set({ isProjectLoading: true });
     try {
       const response = await fetch(`${API_URL}/api/projects/?user_email=${encodeEmail(user.email)}`, {
@@ -420,12 +421,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name })
       });
-      
+
       if (response.ok) {
         const newProject = await response.json();
-        set(state => ({ 
+        set(state => ({
           projects: [...state.projects, newProject],
-          isProjectLoading: false 
+          isProjectLoading: false
         }));
         return newProject;
       } else {
@@ -436,27 +437,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       throw error;
     }
   },
-  
+
   switchProject: async (projectId: number) => {
     const { user, saveCurrentProject } = get();
     if (!user) return;
-    
+
     // Save current project before switching
     await saveCurrentProject();
-    
+
     set({ isProjectLoading: true });
     try {
       const response = await fetch(`${API_URL}/api/projects/${projectId}?user_email=${encodeEmail(user.email)}`);
       if (response.ok) {
         const project = await response.json();
-        
+
         // Parse project data
         const mediaBin = JSON.parse(project.media_bin || '[]');
         const messages = JSON.parse(project.chat_history || '[]').map((msg: any) => ({
           ...msg,
           timestamp: new Date(msg.timestamp)
         }));
-        
+
         set({
           currentProject: project,
           mediaBin,
@@ -476,16 +477,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ isProjectLoading: false });
     }
   },
-  
+
   saveCurrentProject: async () => {
     const { currentProject, mediaBin, messages, user } = get();
     if (!currentProject || !user) return;
-    
+
     try {
       // Serialize current state
       const mediaBinJson = JSON.stringify(mediaBin);
       const chatHistoryJson = JSON.stringify(messages);
-      
+
       await fetch(`${API_URL}/api/projects/${currentProject.id}?user_email=${encodeEmail(user.email)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -498,16 +499,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.error('Failed to save project:', error);
     }
   },
-  
+
   deleteProject: async (projectId: number) => {
     const { user } = get();
     if (!user) return;
-    
+
     try {
       const response = await fetch(`${API_URL}/api/projects/${projectId}?user_email=${encodeEmail(user.email)}`, {
         method: 'DELETE'
       });
-      
+
       if (response.ok) {
         set(state => ({
           projects: state.projects.filter(p => p.id !== projectId),
@@ -518,18 +519,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.error('Failed to delete project:', error);
     }
   },
-  
+
   // ==================== SAVED VIDEOS (GLOBAL) ====================
-  
+
   saveVideo: async (videoUrl: string, filename: string, description?: string) => {
     const { user } = get();
     if (!user) {
       console.error('No user logged in');
       return;
     }
-    
+
     console.log('saveVideo called:', { videoUrl, filename, description, userEmail: user.email });
-    
+
     try {
       const response = await fetch(
         `/api/saved-videos/`,
@@ -544,9 +545,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           })
         }
       );
-      
+
       console.log('saveVideo response status:', response.status);
-      
+
       if (response.ok) {
         const savedVideo = await response.json();
         console.log('Video saved successfully:', savedVideo);
@@ -565,23 +566,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       throw error;
     }
   },
-  
+
   loadSavedVideos: async () => {
     const { user } = get();
     if (!user) {
       console.log('loadSavedVideos: No user logged in');
       return;
     }
-    
+
     console.log('loadSavedVideos: Loading for user:', user.email);
-    
+
     try {
       const response = await fetch(
         `/api/saved-videos/?user_email=${encodeEmail(user.email)}`
       );
-      
+
       console.log('loadSavedVideos response status:', response.status);
-      
+
       if (response.ok) {
         const savedVideos = await response.json();
         console.log('loadSavedVideos: Loaded videos:', savedVideos);
@@ -594,17 +595,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.error('loadSavedVideos error:', error);
     }
   },
-  
+
   deleteSavedVideo: async (videoId: number) => {
     const { user } = get();
     if (!user) return;
-    
+
     try {
       const response = await fetch(
         `/api/saved-videos/?user_email=${encodeEmail(user.email)}&video_id=${videoId}`,
         { method: 'DELETE' }
       );
-      
+
       if (response.ok) {
         set(state => ({
           savedVideos: state.savedVideos.filter(v => v.id !== videoId)

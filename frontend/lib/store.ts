@@ -91,6 +91,7 @@ interface AppState {
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
   handleSuccessfulEdit: (videoId: string, newUrl: string, messageId: string, messageContent: string) => void;
   addEditedMediaToLibrary: (url: string, filename: string, mediaType: 'video' | 'audio') => void;
+  clearChat: () => void;
   renameMediaFile: (id: string, newFilename: string) => void;
   updateMediaFileDescription: (id: string, description: string) => void;
   setPlaybackState: (updates: Partial<AppState['playbackState']>) => void;
@@ -286,6 +287,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       mediaBin: [...state.mediaBin, newFile],
     };
   }),
+
+  clearChat: () => {
+    set({
+      messages: [],
+      currentThreadId: null,
+    });
+  },
 
   renameMediaFile: (id: string, newFilename: string) =>
     set((state) => ({

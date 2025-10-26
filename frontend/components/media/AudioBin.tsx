@@ -14,9 +14,9 @@ const AudioBin = () => {
   // Filter to show only audio files
   const audioFiles = mediaBin.filter(file => file.mediaType === 'audio');
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    deleteMediaFile(id);
+    await deleteMediaFile(id);
   };
 
   const handleRenameClick = (id: string, currentName: string, e: React.MouseEvent) => {

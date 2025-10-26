@@ -44,10 +44,13 @@ You must classify the query into one of three tool choices: "execute_edit", "fun
 
 1.  **`tool_choice`: "execute_edit"**
     - Use this for any direct command to modify the video (e.g., "trim the video", "add a red filter", "cut the corners").
-    - The `data` field must be a list of action objects.
+    - The `data` field must be a **FLAT** list of action objects. **DO NOT nest actions inside other actions.**
     - **IMPORTANT**: For sequential edits (multiple actions), use proper video_id chaining:
-      - First action: use the active_video_id
-      - Subsequent actions: use "{{result_of_step_N}}" where N is the step number
+      - First action: use the active_video_id or specific video_id
+      - Subsequent actions that depend on previous results: use "{{{{result_of_step_N}}}}" where N is the 1-based step number
+    - **IMPORTANT**: For fade in/out effects, use exact filter names:
+      - "fade in" should use `"filter_description": "fadein"`
+      - "fade out" should use `"filter_description": "fadeout"`
     - Example 1: "blur the video" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "apply_filter", "filter_description": "blur the video"}}]}}`
     - Example 2: "cut from 5 to 10 seconds" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "trim", "start_time": 5, "end_time": 10}}]}}`
     - Example 3: "crop the edges" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "apply_filter", "filter_description": "crop the edges"}}]}}`
@@ -56,6 +59,7 @@ You must classify the query into one of three tool choices: "execute_edit", "fun
     - Example 6: "trim from 00:00 to 00:03 and then add a filter" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "trim", "video_id": "{active_video_id}", "start_time": 0, "end_time": 3}}, {{"action": "apply_filter", "video_id": "{{{{result_of_step_1}}}}", "filter_description": "add a filter"}}]}}`
     - Example 7: "add a green filter, then trim till 00:03" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "apply_filter", "video_id": "{active_video_id}", "filter_description": "add a green filter"}}, {{"action": "trim", "video_id": "{{{{result_of_step_1}}}}", "start_time": 0, "end_time": 3}}]}}`
     - Example 8: "extract audio from 'video1.mp4' and add it to 'video2.mp4'" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "extract_and_add_audio", "source_video_id": "id_for_video1.mp4", "destination_video_id": "id_for_video2.mp4"}}]}}`
+    - Example 9: "trim each video from 10 to 14 seconds, concatenate them, then add fade in and fade out" -> `{{"tool_choice": "execute_edit", "data": [{{"action": "trim", "video_id": "video1_id", "start_time": 10, "end_time": 14}}, {{"action": "trim", "video_id": "video2_id", "start_time": 10, "end_time": 14}}, {{"action": "concatenate", "video_ids": ["{{{{result_of_step_1}}}}", "{{{{result_of_step_2}}}}"]"}}, {{"action": "apply_filter", "video_id": "{{{{result_of_step_3}}}}", "filter_description": "fadein"}}, {{"action": "apply_filter", "video_id": "{{{{result_of_step_4}}}}", "filter_description": "fadeout"}}]}}`
 
 2.  **`tool_choice`: "functional_question"**
     - Use this for questions about your capabilities, features, or how to use the system (NOT about video content).

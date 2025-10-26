@@ -62,56 +62,70 @@ def unified_edit_executor(state: GraphState):
         logger.info("Complex command detected, parsing into atomic actions")
         
         # Create a specialized prompt for parsing complex edit commands
-        PARSER_PROMPT = f"""You are an expert video editing command parser. Your job is to break down complex video editing commands into a sequence of simple, atomic actions.
+        media_bin_context = {
+            media_id: {"type": "video" if Path(path).suffix.lower() in ['.mp4', '.mov', '.avi', '.webm'] else "audio"}
+            for media_id, path in media_bin.items()
+        }
 
-You must analyze the user's command and convert it into a JSON array of individual edit actions. Each action should be simple and executable by a single video editing tool.
+        PARSER_PROMPT = f"""You are a master AI video editing assistant. Your task is to deconstruct a user's complex command into a precise, sequential JSON array of atomic actions.
 
-Available atomic actions:
-1. **trim** - Cut video to specific time range
-   Format: {{"action": "trim", "start_time": 0.0, "end_time": 5.0}}
-   
-2. **add_text** - Add text overlay/captions
-   Format: {{"action": "add_text", "text": "caption text", "start_time": 0.0, "duration": 3.0, "position": "center", "fontsize": 70, "color": "white"}}
-   
-3. **apply_filter** - Apply visual effects/filters
-   Format: {{"action": "apply_filter", "filter_description": "description of the filter effect"}}
-   
-4. **change_speed** - Change video playback speed
-   Format: {{"action": "change_speed", "speed_factor": 2.0}}
-   
-5. **concatenate** - Combine multiple videos
-   Format: {{"action": "concatenate", "video_ids": ["id1", "id2"]}}
-   
-6. **extract_audio** - Extract audio from video
-   Format: {{"action": "extract_audio"}}
-   
-7. **add_audio_to_video** - Add audio track to video
-   Format: {{"action": "add_audio_to_video", "video_id": "video_id", "audio_id": "audio_id"}}
+**CRITICAL RULES:**
+1.  **Output ONLY the JSON array.** No explanations, no markdown, just the raw JSON.
+2.  **Strictly adhere to the action formats provided.** Do not invent new parameters.
+3.  **Handle "each video" commands:** If the user says "each video" or "all videos," you MUST iterate through the `media_bin_context` and create a separate, identical action for EACH item of `type: "video"`. Do NOT apply video actions to audio files.
+4.  **Sequential Chaining is KEY:**
+    - The first action(s) targeting a specific video should use its ID from `media_bin_context`.
+    - Subsequent actions that build on a previous result MUST use the placeholder `{{{{result_of_step_N}}}}`, where `N` is the 1-based index of the step that produced the required input.
+5.  **Concatenation:** When concatenating, the `video_ids` list should contain the placeholders from all the preceding trim/edit steps.
 
-Current project state:
-- Active Video ID: "{active_video_id}"
-- Available Media: {json.dumps(list(media_bin.keys()), indent=2)}
+**Available Tools & Formats:**
 
-User's command: "{user_command}"
+- **trim**: `{{ "action": "trim", "video_id": "some_video_id", "start_time": 0.0, "end_time": 5.0 }}`
+- **add_text**: `{{ "action": "add_text", "video_id": "{{{{result_of_step_N}}}}", "text": "Hello", "start_time": 0.0, "duration": 3.0, "position": "center" }}`
+- **apply_filter**: `{{ "action": "apply_filter", "video_id": "{{{{result_of_step_N}}}}", "filter_description": "black and white" }}`
+- **change_speed**: `{{ "action": "change_speed", "video_id": "some_video_id", "speed_factor": 2.0 }}`
+- **concatenate**: `{{ "action": "concatenate", "video_ids": ["{{{{result_of_step_1}}}}", "{{{{result_of_step_2}}}}"] }}`
+- **add_transition**: `{{ "action": "add_transition", "video_id": "{{{{result_of_step_N}}}}", "transition_type": "fade_in", "duration": 1.0 }}`
+- **extract_audio**: `{{ "action": "extract_audio", "video_id": "some_video_id" }}`
+- **add_audio_to_video**: `{{ "action": "add_audio_to_video", "video_id": "some_video_id", "audio_id": "some_audio_id" }}`
 
-Parse this command into a sequence of atomic actions. Consider:
-- Time references (e.g., "from 00:00 to 00:03" = start_time: 0, end_time: 3)
-- Text content (extract the exact text to display)
-- Filter descriptions (be specific about the visual effect)
-- Speed factors (2x = 2.0, 0.5x = 0.5)
-- Order of operations (trim first, then add effects)
-- Sequential processing: each action should build on the previous result
+**Context:**
 
-For sequential edits, use placeholder references:
-- First action: use the original video_id
-- Subsequent actions: use "{{result_of_step_N}}" where N is the step number
+- **User Command:** "{user_command}"
+- **Media Bin:** {json.dumps(media_bin_context, indent=2)}
 
-Respond with ONLY a JSON array of actions, no other text.
-Example: [{{"action": "trim", "video_id": "original_video_id", "start_time": 0, "end_time": 3}}, {{"action": "apply_filter", "video_id": "{{result_of_step_1}}", "filter_description": "add a blue tint"}}]
+**Example Breakdown:**
+User Command: "Trim the first 5 seconds of each video, then combine them."
+Media Bin: {{ "video1.mp4": {{ "type": "video" }}, "video2.mp4": {{ "type": "video" }}, "audio.mp3": {{ "type": "audio" }} }}
+
+**CORRECT JSON OUTPUT:**
+[
+  {{
+    "action": "trim",
+    "video_id": "video1.mp4",
+    "start_time": 0,
+    "end_time": 5
+  }},
+  {{
+    "action": "trim",
+    "video_id": "video2.mp4",
+    "start_time": 0,
+    "end_time": 5
+  }},
+  {{
+    "action": "concatenate",
+    "video_ids": [
+      "{{{{result_of_step_1}}}}",
+      "{{{{result_of_step_2}}}}"
+    ]
+  }}
+]
+
+Now, generate the JSON for the user's command.
 """
-
+        
         # Initialize the parser model
-        model = ChatOpenAI(temperature=0, streaming=True, model_kwargs={"response_format": {"type": "json_object"}})
+        model = ChatOpenAI(temperature=0, streaming=False, model="gpt-4-turbo-preview", model_kwargs={"response_format": {"type": "json_object"}})
         
         # Create the message for parsing
         parse_message = [SystemMessage(content=PARSER_PROMPT)]
@@ -120,37 +134,26 @@ Example: [{{"action": "trim", "video_id": "original_video_id", "start_time": 0, 
             # Get the AI's response
             response = model.invoke(parse_message)
             
-            # Parse the JSON response
-            parsed_actions = json.loads(response.content)
+            # The model is now expected to return a JSON object with a key like "actions"
+            response_data = json.loads(response.content)
+            
+            # Extract the list of actions, assuming it's the first (or only) value in the dict
+            parsed_actions = next(iter(response_data.values()))
             
             # Ensure it's a list
             if not isinstance(parsed_actions, list):
-                parsed_actions = [parsed_actions]
+                 raise ValueError("Parsed response is not a list of actions.")
             
-            # Process the actions to set up sequential references
-            processed_actions = []
-            for i, action in enumerate(parsed_actions):
-                processed_action = action.copy()
-                
-                # For the first action, use the active video ID
-                if i == 0:
-                    processed_action["video_id"] = active_video_id
-                else:
-                    # For subsequent actions, reference the previous step's result
-                    processed_action["video_id"] = f"{{{{result_of_step_{i}}}}}"
-                
-                processed_actions.append(processed_action)
+            logger.info(f"Successfully parsed {len(parsed_actions)} sequential actions: {json.dumps(parsed_actions, indent=2)}")
+            edit_actions = parsed_actions
             
-            logger.info(f"Parsed {len(processed_actions)} sequential actions: {processed_actions}")
-            edit_actions = processed_actions
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse AI response as JSON: {e}")
-            # Fallback: use the original actions
+        except (json.JSONDecodeError, StopIteration, ValueError) as e:
+            logger.error(f"Failed to parse AI response or response was malformed: {e}")
+            # Fallback to keep the original actions, though they are likely to fail
             pass
         except Exception as e:
-            logger.error(f"Error in parsing: {e}")
-            # Fallback: use the original actions
+            logger.error(f"An unexpected error occurred during parsing: {e}")
+            # Fallback
             pass
 
     # Now execute the actions (either original or parsed)
@@ -280,6 +283,7 @@ Example: [{{"action": "trim", "video_id": "original_video_id", "start_time": 0, 
             'add_caption': 'add_text_to_video',  # Support both add_text and add_caption
             'apply_filter': 'apply_filter_to_video',
             'filter': 'apply_filter_to_video',  # Support both for backward compatibility
+            'add_transition': 'apply_filter_to_video', # Route transitions to the filter tool
             'speed': 'change_video_speed',
             'change_speed': 'change_video_speed',  # Support both
             'concatenate': 'concatenate_videos',
@@ -326,11 +330,11 @@ Example: [{{"action": "trim", "video_id": "original_video_id", "start_time": 0, 
                     fontsize=tool_args.get('fontsize', 70),
                     color=tool_args.get('color', 'white')
                 )
-            elif action_name in ['filter', 'apply_filter']:
+            elif action_name in ['filter', 'apply_filter', 'add_transition']:
                 result_path = video_tools.apply_filter_to_video.func(
                     active_video_id=current_video_id,
                     media_bin=temp_media_bin,
-                    filter_description=tool_args['filter_description']
+                    filter_description=tool_args.get('filter_description') or tool_args.get('transition_type')
                 )
             elif action_name in ['speed', 'change_speed']:
                 result_path = video_tools.change_video_speed.func(

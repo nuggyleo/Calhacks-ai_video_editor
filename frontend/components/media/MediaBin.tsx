@@ -134,7 +134,12 @@ const MediaBin = () => {
 
   return (
     <div className="h-full flex flex-col space-y-4">
-      <FileUploader />
+      <FileUploader 
+        accept="video/*"
+        title="Upload Video"
+        onFileUpload={handleFileUpload}
+        mediaType="video"
+      />
 
       {videoFiles.length === 0 ? (
         <div className="text-gray-500 text-sm flex-grow flex items-center justify-center">

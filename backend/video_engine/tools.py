@@ -122,8 +122,10 @@ def apply_filter_to_video(active_video_id: str, media_bin: Dict[str, str], filte
         logger.info(f"Resolved video path: {video_path}")
         
         filter_info = map_description_to_filter(filter_description)
+        logger.info(f"Filter mapping result: {filter_info}")
         filter_name = filter_info.get("filter_name")
         parameters = filter_info.get("parameters", {})
+        logger.info(f"Filter name: {filter_name}, Parameters: {parameters}")
 
         with VideoFileClip(video_path) as clip:
             # Use the robust apply_effects function

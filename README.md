@@ -1,7 +1,7 @@
 #  Cue: The Conversational Video Editor
 
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/12345/placeholder-logo.png" alt="Cue Logo" width="200"/>
+  <img src="logo.png" alt="Cue Logo" width="200"/>
 </p>
 
 <p align="center">
